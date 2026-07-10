@@ -1,0 +1,11 @@
+family,x,y,z
+redstone,-1,4,3
+redstone,-1,4,4
+redstone,-1,5,3
+redstone,1,-1,24
+redstone,1,-1,25
+lapis,2,-1,17
+redstone,2,-1,24
+lapis,3,-1,17
+redstone,24,4,32
+redstone,24,5,32

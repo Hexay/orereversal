@@ -1,0 +1,38 @@
+# ---- build artifacts ----
+*.exe
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.o
+*.a
+*.so
+*.dll
+
+# ---- third-party (clone separately; see README "Building") ----
+# cubiomes is a shallow clone of xpple/cubiomes @ 62007b8 (MIT). Not vendored.
+cubiomes/
+
+# ---- ground-truth Minecraft server (106 MB oracle; regenerate locally) ----
+# Holds server.jar, the 1.18.2 world, and libraries used to produce reference ore dumps.
+gt/
+
+# ---- scratch / experiments ----
+cuda_test/
+
+# ---- machine-specific toolchain bootstrap (hardcoded local paths) ----
+buildtools.ps1
+setup_toolchain.ps1
+vs_cpp.ps1
+
+# ---- logs ----
+*.log
+
+# ---- python ----
+__pycache__/
+*.pyc
+
+# ---- os ----
+.DS_Store
+Thumbs.db
