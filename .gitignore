@@ -18,8 +18,11 @@ cubiomes/
 # Holds server.jar, the 1.18.2 world, and libraries used to produce reference ore dumps.
 gt/
 
-# ---- scratch / experiments ----
+# ---- scratch / experiments (not part of ore reversal) ----
 cuda_test/
+mushroom/                    # incomplete mushroom-island finder WIP
+other/                       # decoration-reversal experiment
+matcher/examples/_*.csv      # regenerable sweep/scratch observations
 
 # ---- machine-specific toolchain bootstrap (hardcoded local paths) ----
 buildtools.ps1
