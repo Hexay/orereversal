@@ -20,9 +20,12 @@ gt/
 
 # ---- scratch / experiments (not part of ore reversal) ----
 cuda_test/
-mushroom/                    # incomplete mushroom-island finder WIP
-other/                       # decoration-reversal experiment
-matcher/examples/_*.csv      # regenerable sweep/scratch observations
+# incomplete mushroom-island finder WIP
+mushroom/
+# decoration-reversal experiment
+other/
+# regenerable sweep/scratch observations
+matcher/examples/_*.csv
 
 # ---- machine-specific toolchain bootstrap (hardcoded local paths) ----
 buildtools.ps1
