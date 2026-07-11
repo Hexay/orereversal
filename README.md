@@ -16,7 +16,7 @@ fingerprint (not vein centroids) and a single carved room is world-unique.
 | Path | What it is |
 |------|-----------|
 | `cuda/` | **The GPU matcher (main deliverable).** `oregen.h` is a portable host+device bit-exact port of cubiomes' 1.18 ore generation; `matcher.cu` is the tiled two-pass world-region localizer. See `cuda/README.md`. |
-| `matcher/` | Python CPU reference matchers + the synthetic round-trip validation harness. Observation format in `matcher/OBSERVATION_FORMAT.md`. |
+| `matcher/` | Python CPU reference matchers + the synthetic round-trip validation harness. Start with `solve.py` (the solver; it imports `matcher.py`) — the other `matcher_*.py` are earlier progression stages. Observation format in `matcher/OBSERVATION_FORMAT.md`. |
 | `harness/` | Small C tools (`region_dump`, `ore_dump`) that dump reference ore positions from cubiomes — the ground truth the GPU port is diffed against. |
 | `NOTES.md` | The full research log (design decisions, dead-ends, why each ore family is or isn't matchable). |
 | `CUDA_PARADIGMS.md` | GPU optimization notes. |
