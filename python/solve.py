@@ -1,139 +1,152 @@
-# solve.py — consume an ore observation (see docs/observation-format.md) and return ranked candidate world
-# locations for a known seed. Two-stage, recall-safe:
-#   stage 1 (presence): anchor-enumeration (every region candidate of the rarest observed family is a
-#     hypothesis -> true location never dropped) + full-score ore cells vs dilated candidate sets. The true
-#     location always has MAX presence (real ores subset candidates), so it survives to stage 2.
-#   stage 2 (soft absence): on the top presence survivors, penalize ore predicted on 'bare' cells.
-#     final = presence - w * absence_hits. Crushes false positives, esp. via the dense families.
-# Bounded region here (CPU). World-scale = GPU phase (same logic).
+"""Reference CPU solver: rank where in a known-seed world an observation (docs/observation-format.md) is.
+
+The same two-stage algorithm as the GPU matcher in cuda/, over a small region around the origin:
+  1. Presence. Every candidate block of the observation's rarest family is a hypothesis, in all 8
+     orientations, scored by how many observed ore cells the seed predicts there. Real ore is a subset
+     of the candidates, so the true location always has the top presence score and is never pruned.
+  2. Soft absence. The best hypotheses lose a point (times the weight) for every bare cell where the seed
+     predicts ore.
+Tolerances dilate the candidate sets by twice the given error, because the anchor cell is itself
+uncertain by that much.
+"""
+
+import argparse
+from typing import NamedTuple
+
 import candidates as C
-import argparse, csv, collections
+from observation import load_observation
+
+ORIENTATIONS = [(rotation, mirror) for rotation in range(4) for mirror in (1, -1)]
 
 
-def orient_xz(x, z, r, mir):
-    x *= mir
-    for _ in range(r):
+class Hypothesis(NamedTuple):
+    origin: tuple  # world position of the observation's (0, 0, 0)
+    present: int
+    absence_hits: int
+    score: float
+    rotation: int
+    mirror: int
+
+
+def orient_xz(x, z, rotation, mirror):
+    x *= mirror
+    for _ in range(rotation):
         x, z = -z, x
     return x, z
 
 
-def dilate(pts, rad):
-    if rad == 0:
-        return set(pts)
-    out = set()
-    R = range(-rad, rad + 1)
-    for X, Y, Z in pts:
-        for dx in R:
-            for dy in R:
-                for dz in R:
-                    out.add((X + dx, Y + dy, Z + dz))
-    return out
+def dilate(points, radius):
+    if radius == 0:
+        return set(points)
+    offsets = range(-radius, radius + 1)
+    return {
+        (x + dx, y + dy, z + dz) for x, y, z in points for dx in offsets for dy in offsets for dz in offsets
+    }
 
 
-def load_obs(path):
-    ore = []
-    bare = []
-    with open(path) as f:
-        for row in csv.reader(f):
-            if not row or row[0].strip() in ("family", "") or row[0].startswith("#"):
-                continue
-            fam = row[0].strip()
-            p = (int(row[1]), int(row[2]), int(row[3]))
-            (bare if fam == "bare" else ore).append((p[0], p[1], p[2], fam))
-    return ore, bare
+def placed(cell, origin, rotation, mirror):
+    dx, dz = orient_xz(cell.x, cell.z, rotation, mirror)
+    return (origin[0] + dx, origin[1] + cell.y, origin[2] + dz)
 
 
-def solve(cand, ore, bare, e, w=1.0, topk=300, topn=8, ae=0):
-    D = 2 * e
-    dil = {f: dilate(s, D) for f, s in cand.items() if any(o[3] == f for o in ore) or f in C.USABLE}
-    # absence has its own tolerance (default exact) — see docs/research-log.md P7
-    combined = set().union(*[dilate(cand[f], 2 * ae) for f in dil]) if dil else set()  # "any usable ore here"
-    fams = [f for f in {o[3] for o in ore} if cand.get(f)]
-    if not fams:
+def count_present(ore, origin, rotation, mirror, candidates_by_family):
+    return sum(placed(c, origin, rotation, mirror) in candidates_by_family.get(c.family, ()) for c in ore)
+
+
+def count_absence_hits(bare, origin, rotation, mirror, any_ore):
+    return sum(placed(c, origin, rotation, mirror) in any_ore for c in bare)
+
+
+def chebyshev(a, b):
+    return max(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[2] - b[2]))
+
+
+def solve(candidates, ore, bare, tolerance, absence_weight=1.0, absence_tolerance=0, keep=300, top_n=8):
+    """Returns (best hypotheses, anchor family, hypothesis count)."""
+    observed = {c.family for c in ore}
+    scored_families = [f for f in candidates if f in observed or f in C.USABLE]
+    present_sets = {f: dilate(candidates[f], 2 * tolerance) for f in scored_families}
+    any_ore = set().union(*(dilate(candidates[f], 2 * absence_tolerance) for f in scored_families))
+
+    anchor_families = [f for f in sorted(observed) if candidates.get(f)]  # sorted: deterministic ties
+    if not anchor_families:
         return [], None, 0
-    anchor = min(fams, key=lambda f: len(cand[f]))
-    ax, ay, az = next((x, y, z) for (x, y, z, f) in ore if f == anchor)
+    anchor_family = min(anchor_families, key=lambda f: len(candidates[f]))
+    anchor = next(c for c in ore if c.family == anchor_family)
 
-    def presence(r, mir, ox, oy, oz):
-        s = 0
-        for x, y, z, f in ore:
-            dx, dz = orient_xz(x, z, r, mir)
-            if (ox + dx, oy + y, oz + dz) in dil.get(f, ()):
-                s += 1
-        return s
+    # Stage 1: best presence (and its orientation) per origin, over every hypothesis.
+    best_by_origin = {}
+    hypothesis_count = 0
+    for rotation, mirror in ORIENTATIONS:
+        ax, az = orient_xz(anchor.x, anchor.z, rotation, mirror)
+        for cx, cy, cz in candidates[anchor_family]:
+            hypothesis_count += 1
+            origin = (cx - ax, cy - anchor.y, cz - az)
+            present = count_present(ore, origin, rotation, mirror, present_sets)
+            if present > best_by_origin.get(origin, (-1,))[0]:
+                best_by_origin[origin] = (present, rotation, mirror)
+    survivors = sorted(best_by_origin.items(), key=lambda item: -item[1][0])[:keep]
 
-    def absence(r, mir, ox, oy, oz):
-        s = 0
-        for x, y, z, f in bare:
-            dx, dz = orient_xz(x, z, r, mir)
-            if (ox + dx, oy + y, oz + dz) in combined:
-                s += 1  # predicted an ore where we saw bare
-        return s
-
-    # stage 1: presence over all hypotheses
-    bylocs = {}
-    nhyp = 0
-    for r in range(4):
-        for mir in (1, -1):
-            adx, adz = orient_xz(ax, az, r, mir)
-            for cx, cy, cz in cand[anchor]:
-                nhyp += 1
-                ox, oy, oz = cx - adx, cy - ay, cz - adz
-                p = presence(r, mir, ox, oy, oz)
-                k = (ox, oy, oz)
-                if p > bylocs.get(k, (-1,))[0]:
-                    bylocs[k] = (p, (r, mir))
-    survivors = sorted(bylocs.items(), key=lambda kv: -kv[1][0])[:topk]
-    # stage 2: soft absence on survivors
-    scored = []
-    for loc, (p, (r, mir)) in survivors:
-        ah = absence(r, mir, *loc) if bare else 0
-        scored.append((loc, p, ah, p - w * ah, (r, mir)))
-    scored.sort(key=lambda t: -t[3])
-    out = []
-    for loc, p, ah, fin, om in scored:
-        if all(
-            max(abs(loc[0] - d[0][0]), abs(loc[1] - d[0][1]), abs(loc[2] - d[0][2])) > 2 * e + 1 for d in out
-        ):
-            out.append((loc, p, ah, fin, om))
-        if len(out) >= topn:
+    # Stage 2: soft absence on the survivors, then keep one hypothesis per neighbourhood.
+    hypotheses = []
+    for origin, (present, rotation, mirror) in survivors:
+        hits = count_absence_hits(bare, origin, rotation, mirror, any_ore) if bare else 0
+        hypotheses.append(
+            Hypothesis(origin, present, hits, present - absence_weight * hits, rotation, mirror)
+        )
+    hypotheses.sort(key=lambda h: -h.score)
+    best = []
+    for h in hypotheses:
+        if all(chebyshev(h.origin, kept.origin) > 2 * tolerance + 1 for kept in best):
+            best.append(h)
+        if len(best) >= top_n:
             break
-    return out, anchor, nhyp
+    return best, anchor_family, hypothesis_count
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("observation")
-    ap.add_argument("--seed", default="123")
-    ap.add_argument("--version", default="1.18")
-    ap.add_argument("--region", type=int, default=13)
-    ap.add_argument("--error", type=int, default=0)
-    ap.add_argument("--abs-error", type=int, default=0, help="tolerance for bare cells (default exact)")
-    ap.add_argument("--absence-weight", type=float, default=1.0)
-    a = ap.parse_args()
-    ore, bare = load_obs(a.observation)
-    R = a.region
-    cand = C.region_dump(a.seed, a.version, -R - 1, R + 1, -R - 1, R + 1)
-    res, anchor, nhyp = solve(cand, ore, bare, a.error, a.absence_weight, ae=a.abs_error)
+def print_report(args, ore, bare, results, anchor_family, hypothesis_count):
+    size = 2 * args.region + 1
     print(
-        f"obs: {len(ore)} ore + {len(bare)} bare | search {(2 * R + 1) ** 2} ch | anchor={anchor} hyps={nhyp} err=+-{a.error} abs_err=+-{a.abs_error} w={a.absence_weight}"
+        f"obs: {len(ore)} ore + {len(bare)} bare | search {size**2} ch | anchor={anchor_family} "
+        f"hyps={hypothesis_count} err=+-{args.error} abs_err=+-{args.abs_error} w={args.absence_weight}"
     )
-    if not res:
+    if not results:
         print("no candidates.")
         return
     print(
         f"\n{'rank':>4} {'world_origin':>20} {'chunk':>11} {'orient':>7} {'present':>8} {'absHits':>8} {'final':>9}"
     )
-    for i, (loc, p, ah, fin, (r, mir)) in enumerate(res):
+    for rank, h in enumerate(results, 1):
+        chunk = (h.origin[0] >> 4, h.origin[2] >> 4)
+        orient = f"r{h.rotation}m{h.mirror}"
         print(
-            f"{i + 1:>4} {str(loc):>20} {str((loc[0] >> 4, loc[2] >> 4)):>11} {f'r{r}m{mir}':>7} {p}/{len(ore)} {ah:>8} {fin:>9.1f}"
+            f"{rank:>4} {str(h.origin):>20} {str(chunk):>11} {orient:>7} {h.present}/{len(ore)} "
+            f"{h.absence_hits:>8} {h.score:>9.1f}"
         )
-    top = res[0][3]
-    second = res[1][3] if len(res) > 1 else 0
-    print(
-        f"\ntop_final={top:.1f}  margin_to_next={top - second:.1f}  "
-        f"=> {'CONFIDENT (unique)' if top - second >= max(3, 0.3 * len(ore)) else 'shortlist'}"
+    top = results[0].score
+    second = results[1].score if len(results) > 1 else 0
+    verdict = "CONFIDENT (unique)" if top - second >= max(3, 0.3 * len(ore)) else "shortlist"
+    print(f"\ntop_final={top:.1f}  margin_to_next={top - second:.1f}  => {verdict}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("observation")
+    parser.add_argument("--seed", default="123")
+    parser.add_argument("--version", default="1.18")
+    parser.add_argument("--region", type=int, default=13, help="search chunks -R..R on both axes")
+    parser.add_argument("--error", type=int, default=0, help="ore-cell position tolerance in blocks")
+    parser.add_argument("--abs-error", type=int, default=0, help="bare-cell position tolerance in blocks")
+    parser.add_argument("--absence-weight", type=float, default=1.0)
+    args = parser.parse_args()
+
+    ore, bare = load_observation(args.observation)
+    r = args.region
+    candidates = C.region_dump(args.seed, args.version, -r - 1, r + 1, -r - 1, r + 1)
+    results, anchor_family, hypothesis_count = solve(
+        candidates, ore, bare, args.error, args.absence_weight, args.abs_error
     )
+    print_report(args, ore, bare, results, anchor_family, hypothesis_count)
 
 
 if __name__ == "__main__":
