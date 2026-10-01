@@ -102,8 +102,7 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
                             ((r.originZ + obs.maxExtent) >> 4) + margin, candidates);
         refined[t] = rescore(r, obs, candidates, opt);
     }
-    std::sort(refined.begin(), refined.end(),
-              [](const Result& a, const Result& b) { return a.score > b.score; });
+    std::sort(refined.begin(), refined.end(), rankedBefore);
     return refined;
 }
 

@@ -25,7 +25,7 @@ static inline int chebyshev(const Result& a, const Result& b) {
 // separation-sized buckets: anything within `separation` lies in the 3x3x3 neighbouring buckets.
 static void mergeTopK(std::vector<Result>& top, const std::vector<Result>& incoming, int separation, int k) {
     top.insert(top.end(), incoming.begin(), incoming.end());
-    std::sort(top.begin(), top.end(), [](const Result& a, const Result& b) { return a.score > b.score; });
+    std::sort(top.begin(), top.end(), rankedBefore);
     std::vector<Result> kept;
     std::unordered_map<long long, std::vector<int>> buckets;
     buckets.reserve(k * 2);

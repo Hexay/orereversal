@@ -29,6 +29,22 @@ struct Result {
     float score;
 };
 
+// Best first: higher score, ties broken by position and orientation so rankings don't depend on the
+// order the GPU happened to append results in.
+static inline bool rankedBefore(const Result& a, const Result& b) {
+    if (a.score != b.score)
+        return a.score > b.score;
+    if (a.originX != b.originX)
+        return a.originX < b.originX;
+    if (a.originY != b.originY)
+        return a.originY < b.originY;
+    if (a.originZ != b.originZ)
+        return a.originZ < b.originZ;
+    if (a.rotation != b.rotation)
+        return a.rotation < b.rotation;
+    return a.mirror < b.mirror;
+}
+
 // Rotate (x, z) by rotation * 90 degrees after optionally mirroring x. 4 rotations x 2 mirrors = the 8
 // horizontal orientations every hypothesis is tested in.
 ORE_HD static inline void orientXZ(int x, int z, int rotation, int mirror, int* outX, int* outZ) {
