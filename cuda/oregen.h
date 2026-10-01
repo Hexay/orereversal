@@ -1,344 +1,224 @@
-// oregen.h — portable (host + CUDA device) port of cubiomes' 1.18+ Tier-1 ore generation.
-// Hand-ported from xpple/cubiomes finders.c/rng.h. Bit-exactness is verified by diffing the CPU
-// driver (oretest.c) against region_dump.exe — see cuda/README.md. Only the discard-free Tier-1
-// families we validated are ported; the biome system is omitted (all these ores are isOverworld =
-// always viable, no RNG cost) so LargeCopperOre (dripstone/deep_dark gated) is excluded.
-//
-// SURFACE GATE: cubiomes' generateOrePositions gates each vein on mapApproxHeight (surface noise).
-// For deep ores startY << surface so the gate always passes; ORE_SKIP_SURFACE replaces it with
-// "always generate". The diff test reveals whether any high-Y family (gravel/copper/upper_granite)
-// needs the real gate. Define ORE_WITH_SURFACE to require a host-supplied surface_floor(x,z) hook.
+// Bit-exact port of cubiomes' 1.18 ore generation (finders.c generateOres / generateVeinPart), plain C
+// for both host and device. Only the families in ore_config.h are ported; the biome check is omitted
+// because none of them is biome-gated and it consumes no RNG. Verified against harness/region_dump
+// by the golden diff in tests/regress.sh.
 #ifndef OREGEN_H
 #define OREGEN_H
-#include <stdint.h>
 #include <math.h>
 #include <string.h>
+#include "ore_config.h"
+#include "ore_rng.h"
+#include "occupancy.h"
 
-#ifdef __CUDACC__
-#define ORE_HD __host__ __device__
-#else
-#define ORE_HD
-#endif
-
-#define ORE_PI       3.14159265358979323846
-#define ORE_MAXSIZE  64   // largest config.size (tuff/granite = 64)
-#define ORE_MAXSLOTS 1600 // ceil(maxOreSize*maxRadius*maxOreSize / 8); tuff -> 26*14*26=9464 bits
-
-// ---- Tier-1 family ids (stable, used by driver + matcher) ----
-// GPU-ACTIVE (bit-exact w/o surface noise): tuff, redstone, lapis, granite.
-// DEFERRED (need the mapApproxHeight surface gate; high Y-range desyncs RNG): gravel, copper.
-// Verified bit-exact vs region_dump.exe over 64 chunks (cuda/README.md). See docs/research-log.md P3.
-enum { F_TUFF = 0, F_REDSTONE, F_LAPIS, F_GRAVEL, F_GRANITE, F_COPPER, F_IRON, F_COUNT };
-#define ORE_GPU_ACTIVE(fam) ((fam) == F_TUFF || (fam) == F_REDSTONE || (fam) == F_LAPIS || (fam) == F_GRANITE)
-
-// ---- height provider kinds ----
-enum { HP_UNIFORM = 0, HP_TRIANGLE };
-
-typedef struct {
-    int32_t index, step, size, repeatCount;
-    int32_t hp;     // HP_UNIFORM | HP_TRIANGLE
-    int32_t h1, h2; // min, max offset
-    int32_t rare;   // rareOrePlacement (upper_granite): repeatCount via nextFloat<1/repeatCount
-    float discard;  // discardChanceOnAirExposure (0 or 1 for Tier-1)
-    int32_t family; // F_*
-} OreCfg;
-
-// 1.18 (MC_1_18 <= mc < MC_1_20) Tier-1 configs. Values transcribed from finders.c getOreConfig.
-// One OreCfg per cubiomes ore *type* (a family can have several types, e.g. redstone + lower_redstone).
-#define ORE_NCFG 9
-// clang-format off
-#define ORE_CFGS_118_INIT {                                                                            \
-    /* index, step, size, repeat, hp,          h1,  h2, rare, discard, family */                     \
-    {  8, 6, 64,  2, HP_UNIFORM,  -64,   0, 0, 0.0f, F_TUFF     }, /* tuff */                        \
-    { 16, 6,  8,  4, HP_UNIFORM,  -64,  15, 0, 0.0f, F_REDSTONE }, /* redstone */                    \
-    { 17, 6,  8,  8, HP_TRIANGLE, -96, -32, 0, 0.0f, F_REDSTONE }, /* lower_redstone */              \
-    { 21, 6,  7,  2, HP_TRIANGLE, -32,  32, 0, 0.0f, F_LAPIS    }, /* lapis */                       \
-    { 22, 6,  7,  4, HP_UNIFORM,  -64,  64, 0, 1.0f, F_LAPIS    }, /* buried_lapis (discard=1) */    \
-    {  1, 6, 33, 14, HP_UNIFORM,  -64, 319, 0, 0.0f, F_GRAVEL   }, /* gravel */                      \
-    {  3, 6, 64,  2, HP_UNIFORM,    0,  60, 0, 0.0f, F_GRANITE  }, /* lower_granite */               \
-    {  2, 6, 64,  6, HP_UNIFORM,   64, 128, 1, 0.0f, F_GRANITE  }, /* upper_granite (rare) */        \
-    { 24, 6, 10, 16, HP_TRIANGLE, -16, 112, 0, 0.0f, F_COPPER   }, /* copper */                      \
-}
-// clang-format on
-// Under nvcc the device table can't be read from host code, so host callers use ORE_CFGS_118_H.
-#ifdef __CUDACC__
-static __device__ const OreCfg ORE_CFGS_118[ORE_NCFG] = ORE_CFGS_118_INIT;
-static const OreCfg ORE_CFGS_118_H[ORE_NCFG] = ORE_CFGS_118_INIT;
-#else
-static const OreCfg ORE_CFGS_118[ORE_NCFG] = ORE_CFGS_118_INIT;
-#define ORE_CFGS_118_H ORE_CFGS_118
-#endif
+#define ORE_PI          3.14159265358979323846
+#define MAX_VEIN_NODES  64   // largest OreConfig.size
+#define VEIN_SEEN_BYTES 1600 // dedup bitset over the largest vein box (26 * 14 * 26 cells)
 
 typedef struct {
     int32_t x, y, z;
 } OrePos;
-#ifndef __CUDACC__
-typedef struct {
-    int x, y, z;
-} int3; // CPU fallback (CUDA provides int3)
-#endif
 
-// Emit sink for generated candidate blocks. Array mode (out!=0) used by the CPU driver; occ mode
-// (out==0, CUDA only) writes a per-family occupancy bitmask directly + collects anchor candidates —
-// no intermediate array, so it scales to large tiles.
+// A vein is a line segment from `from` to `to`, sampled into `size` spheres. Its blocks are confined to
+// a box starting at boxMin (cubiomes names the box extents oreSize and radius).
 typedef struct {
-    OrePos* out;
-    int* n;
-    int cap; // array mode
-    uint32_t* occ;
-    long wpf;
-    int fa;             // occ mode: bitmask base, words/family, family idx
-    int X0, Z0, DX, DZ; // occ region (block origin + extent), y band -64..-1
-    int3* anchorList;
-    int* anchorCount;
-    int anchorCap, isAnchor;
-    int icx0, icx1, icz0, icz1; // interior block bounds for anchor enumeration
-} OreEmit;
+    double fromX, fromY, fromZ, toX, toY, toZ;
+    int boxMinX, boxMinY, boxMinZ;
+    int boxSizeXZ, boxSizeY;
+} VeinShape;
 
-ORE_HD static inline void oreEmit(OreEmit* em, int x, int y, int z) {
-    if (em->out) {
-        if (*em->n < em->cap) {
-            em->out[*em->n].x = x;
-            em->out[*em->n].y = y;
-            em->out[*em->n].z = z;
-            (*em->n)++;
+typedef struct {
+    double x, y, z, radius; // radius <= 0 marks a node culled as contained in another
+} VeinNode;
+
+// Where generated blocks go: appended to a list (host), or set in an occupancy grid with anchor
+// collection (device, legacy generator).
+typedef struct {
+    OrePos* list;
+    int* listCount;
+    int listCapacity;
+    OccupancyGrid grid;
+    int family;
+    AnchorSink anchors;
+    int isAnchorFamily;
+} CandidateSink;
+
+ORE_HD static inline void emitCandidate(CandidateSink* s, int x, int y, int z) {
+    if (s->list) {
+        if (*s->listCount < s->listCapacity) {
+            OrePos* p = &s->list[*s->listCount];
+            p->x = x;
+            p->y = y;
+            p->z = z;
+            (*s->listCount)++;
         }
         return;
     }
-#ifdef __CUDA_ARCH__ // occ mode is device-only (atomics); host callers always use array mode
-    if (y < -64 || y >= 0)
+#ifdef __CUDA_ARCH__ // grid mode uses device atomics; host callers always use list mode
+    if (!inGrid(&s->grid, x, y, z))
         return;
-    if (x < em->X0 || x >= em->X0 + em->DX || z < em->Z0 || z >= em->Z0 + em->DZ)
-        return;
-    long idx = ((long)(x - em->X0) * 64 + (y + 64)) * em->DZ + (z - em->Z0);
-    atomicOr(&em->occ[(long)em->fa * em->wpf + (idx >> 5)], 1u << (idx & 31));
-    if (em->isAnchor && x >= em->icx0 && x <= em->icx1 && z >= em->icz0 && z <= em->icz1) {
-        int s = atomicAdd(em->anchorCount, 1);
-        if (s < em->anchorCap)
-            em->anchorList[s] = make_int3(x, y, z);
+    int64_t bit = occBitIndex(&s->grid, x, y, z);
+    atomicOr(&s->grid.words[s->family * s->grid.wordsPerFamily + (bit >> 5)], 1u << (bit & 31));
+    if (s->isAnchorFamily && inAnchorArea(&s->anchors, x, z)) {
+        int slot = atomicAdd(s->anchors.count, 1);
+        if (slot < s->anchors.capacity)
+            s->anchors.items[slot] = make_int3(x, y, z);
     }
 #endif
 }
 
-// ===================== RNG (xoroshiro128++, Java-faithful) =====================
-typedef struct {
-    uint64_t lo, hi;
-} XR;
-
-ORE_HD static inline uint64_t ore_rotl(uint64_t x, int k) {
-    return (x << k) | (x >> (64 - k));
+ORE_HD static inline double lerp(double t, double a, double b) {
+    return a + t * (b - a);
 }
 
-ORE_HD static inline void xSetSeed(XR* xr, uint64_t value) {
-    const uint64_t XL = 0x9e3779b97f4a7c15ULL, XH = 0x6a09e667f3bcc909ULL;
-    const uint64_t A = 0xbf58476d1ce4e5b9ULL, B = 0x94d049bb133111ebULL;
-    uint64_t l = value ^ XH, h = l + XL;
-    l = (l ^ (l >> 30)) * A;
-    h = (h ^ (h >> 30)) * A;
-    l = (l ^ (l >> 27)) * B;
-    h = (h ^ (h >> 27)) * B;
-    l = l ^ (l >> 31);
-    h = h ^ (h >> 31);
-    xr->lo = l;
-    xr->hi = h;
+// The RNG stream for one ore config in one chunk.
+ORE_HD static inline Xoroshiro oreConfigRng(uint64_t worldSeed, const OreConfig* c, int chunkX, int chunkZ) {
+    uint64_t populationSeed = getPopulationSeed(worldSeed, chunkX << 4, chunkZ << 4);
+    Xoroshiro rng;
+    xSetSeed(&rng, populationSeed + (uint64_t)c->index + 10000ULL * (uint64_t)c->step);
+    return rng;
 }
-ORE_HD static inline uint64_t xNextLong(XR* xr) {
-    uint64_t l = xr->lo, h = xr->hi, n = ore_rotl(l + h, 17) + l;
-    h ^= l;
-    xr->lo = ore_rotl(l, 49) ^ h ^ (h << 21);
-    xr->hi = ore_rotl(h, 28);
+
+ORE_HD static inline int veinAttempts(const OreConfig* c, Xoroshiro* rng) {
+    if (c->rare)
+        return (xNextFloat(rng) < 1.0f / (float)c->attempts) ? 1 : 0;
+    return c->attempts;
+}
+
+ORE_HD static inline int veinHeight(const OreConfig* c, Xoroshiro* rng) {
+    if (c->minY > c->maxY)
+        return c->minY;
+    int range = c->maxY - c->minY;
+    if (c->heightKind == HEIGHT_UNIFORM || range <= 0)
+        return xNextIntBetween(rng, c->minY, c->maxY);
+    int half = range / 2;
+    int a = xNextIntBetween(rng, 0, range - half);
+    int b = xNextIntBetween(rng, 0, half);
+    return c->minY + a + b;
+}
+
+ORE_HD static inline VeinShape nextVeinShape(const OreConfig* c, Xoroshiro* rng, int chunkX, int chunkZ) {
+    int bx = (chunkX << 4) + xNextIntJ(rng, 16);
+    int bz = (chunkZ << 4) + xNextIntJ(rng, 16);
+    int by = veinHeight(c, rng);
+    float angle = xNextFloat(rng) * (float)ORE_PI;
+    float halfLength = (float)c->size / 8.0F;
+    int pad = (int)ceil(((float)c->size / 16.0F * 2.0F + 1.0F) / 2.0F);
+    VeinShape v;
+    v.fromX = (double)bx + sin(angle) * (double)halfLength;
+    v.toX = (double)bx - sin(angle) * (double)halfLength;
+    v.fromZ = (double)bz + cos(angle) * (double)halfLength;
+    v.toZ = (double)bz - cos(angle) * (double)halfLength;
+    v.fromY = by + xNextIntJ(rng, 3) - 2;
+    v.toY = by + xNextIntJ(rng, 3) - 2;
+    v.boxMinX = bx - (int)ceil(halfLength) - pad;
+    v.boxMinY = by - 2 - pad;
+    v.boxMinZ = bz - (int)ceil(halfLength) - pad;
+    v.boxSizeXZ = 2 * ((int)ceil(halfLength) + pad);
+    v.boxSizeY = 2 * (2 + pad);
+    return v;
+}
+
+ORE_HD static inline VeinNode nextVeinNode(const VeinShape* v, int i, int size, Xoroshiro* rng) {
+    float t = (float)i / (float)size;
+    VeinNode n;
+    n.x = lerp(t, v->fromX, v->toX);
+    n.y = lerp(t, v->fromY, v->toY);
+    n.z = lerp(t, v->fromZ, v->toZ);
+    double length = xNextDoubleJ(rng) * (double)size / 16.0;
+    n.radius = ((sin((float)ORE_PI * t) + 1.0F) * length + 1.0) / 2.0;
     return n;
 }
-ORE_HD static inline uint64_t xNextLongJ(XR* xr) {
-    int32_t a = (int32_t)(xNextLong(xr) >> 32), b = (int32_t)(xNextLong(xr) >> 32);
-    return ((uint64_t)a << 32) + b;
-}
-ORE_HD static inline int xNextIntJ(XR* xr, uint32_t n) {
-    int bits, val;
-    const int m = n - 1;
-    if ((m & n) == 0) {
-        uint64_t x = n * (xNextLong(xr) >> 33);
-        return (int)((int64_t)x >> 31);
-    }
-    do {
-        bits = (int)(xNextLong(xr) >> 33);
-        val = bits % n;
-    } while ((int32_t)((uint32_t)bits - val + m) < 0);
-    return val;
-}
-ORE_HD static inline float xNextFloat(XR* xr) {
-    return (xNextLong(xr) >> (64 - 24)) * 5.9604645E-8F;
-}
-ORE_HD static inline double xNextDoubleJ(XR* xr) {
-    uint64_t a = xNextLong(xr), b = xNextLong(xr);
-    return ((a >> (64 - 26) << 27) + (b >> (64 - 27))) * 1.1102230246251565E-16;
-}
-ORE_HD static inline int xNextIntBetween(XR* xr, int mn, int mx) {
-    return xNextIntJ(xr, (uint32_t)(mx - mn + 1)) + mn;
-}
 
-ORE_HD static inline uint64_t getPopulationSeed(uint64_t ws, int x, int z) {
-    XR xr;
-    xSetSeed(&xr, ws);
-    uint64_t a = xNextLongJ(&xr) | 1ULL, b = xNextLongJ(&xr) | 1ULL;
-    return ((uint64_t)x * a + (uint64_t)z * b) ^ ws;
-}
-
-ORE_HD static inline int ore_height(const OreCfg* c, XR* rnd) {
-    if (c->hp == HP_UNIFORM) {
-        if (c->h1 > c->h2)
-            return c->h1;
-        return xNextIntBetween(rnd, c->h1, c->h2);
-    } else { // triangle
-        if (c->h1 > c->h2)
-            return c->h1;
-        int range = c->h2 - c->h1;
-        if (range <= 0)
-            return xNextIntBetween(rnd, c->h1, c->h2);
-        int mid = range / 2, mid2 = range - mid;
-        int a = xNextIntBetween(rnd, 0, mid2), b = xNextIntBetween(rnd, 0, mid);
-        return c->h1 + a + b;
-    }
-}
-
-// ---- bit array (matches cubiomes BITSET/BITTEST) ----
-#define ORE_BITSET(a, b)  ((a)[(b) >> 3] |= (char)(1 << ((b) & 7)))
-#define ORE_BITTEST(a, b) ((a)[(b) >> 3] & (char)(1 << ((b) & 7)))
-
-ORE_HD static inline int ore_floor(double v) {
-    return (int)floor(v);
-}
-ORE_HD static inline double ore_lerp(double p, double a, double b) {
-    return a + p * (b - a);
-}
-
-// Faithful port of generateVeinPart for discard in {0,1} (Tier-1). Appends to out[*n] (capacity cap).
-ORE_HD static inline void generateVeinPart(const OreCfg* c, XR* rnd, double oXP, double oXN, double oZP,
-                                           double oZN, double oYP, double oYN, int startX, int startY,
-                                           int startZ, int oreSize, int radius, OreEmit* em) {
-    const int minBuildHeight = -64, maxBuildHeight = 320;
-    char bitSet[ORE_MAXSLOTS];
-    memset(bitSet, 0, sizeof(bitSet));
-    int size = c->size;
-    double store[4 * ORE_MAXSIZE];
-
-    for (int i = 0; i < size; ++i) {
-        float percent = (float)i / (float)size;
-        double x = ore_lerp(percent, oXP, oXN), y = ore_lerp(percent, oYP, oYN),
-               z = ore_lerp(percent, oZP, oZN);
-        double length = xNextDoubleJ(rnd) * (double)size / 16.0;
-        double offset = ((sin((float)ORE_PI * percent) + 1.0F) * length + 1.0) / 2.0;
-        store[i * 4] = x;
-        store[i * 4 + 1] = y;
-        store[i * 4 + 2] = z;
-        store[i * 4 + 3] = offset;
-    }
+// Marks every node whose sphere lies inside another node's sphere (cubiomes' O(size^2) pass).
+ORE_HD static inline void cullContainedNodes(VeinNode* nodes, int size) {
     for (int i = 0; i < size - 1; ++i) {
-        if (store[i * 4 + 3] <= 0.0)
+        if (nodes[i].radius <= 0.0)
             continue;
         for (int j = i + 1; j < size; ++j) {
-            if (store[j * 4 + 3] <= 0.0)
+            if (nodes[j].radius <= 0.0)
                 continue;
-            double dX = store[i * 4] - store[j * 4], dY = store[i * 4 + 1] - store[j * 4 + 1],
-                   dZ = store[i * 4 + 2] - store[j * 4 + 2];
-            double off = store[i * 4 + 3] - store[j * 4 + 3];
-            if (off * off <= dX * dX + dY * dY + dZ * dZ)
+            double dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y, dz = nodes[i].z - nodes[j].z;
+            double dr = nodes[i].radius - nodes[j].radius;
+            if (dr * dr <= dx * dx + dy * dy + dz * dz)
                 continue;
-            if (off > 0.0)
-                store[j * 4 + 3] = -1.0;
+            if (dr > 0.0)
+                nodes[j].radius = -1.0;
             else
-                store[i * 4 + 3] = -1.0;
+                nodes[i].radius = -1.0;
         }
     }
-    for (int i = 0; i < size; ++i) {
-        double offset = store[i * 4 + 3];
-        if (offset < 0.0)
+}
+
+ORE_HD static inline int floorToInt(double v) {
+    return (int)floor(v);
+}
+
+// cubiomes generateVeinPart: emits every in-box block inside a live node's sphere, each block once.
+ORE_HD static inline void generateVeinPart(const OreConfig* c, Xoroshiro* rng, const VeinShape* v,
+                                           CandidateSink* sink) {
+    const int minBuildY = -64, maxBuildY = 320;
+    VeinNode nodes[MAX_VEIN_NODES];
+    for (int i = 0; i < c->size; ++i)
+        nodes[i] = nextVeinNode(v, i, c->size, rng);
+    cullContainedNodes(nodes, c->size);
+
+    // cubiomes dedups by box-relative index without bounds-checking it; replicate exactly.
+    char seen[VEIN_SEEN_BYTES];
+    memset(seen, 0, sizeof(seen));
+    for (int i = 0; i < c->size; ++i) {
+        const VeinNode* n = &nodes[i];
+        if (n->radius < 0.0)
             continue;
-        double x = store[i * 4], y = store[i * 4 + 1], z = store[i * 4 + 2];
-        int minX = ore_floor(x - offset);
-        if (minX < startX)
-            minX = startX;
-        int minY = ore_floor(y - offset);
-        if (minY < startY)
-            minY = startY;
-        int minZ = ore_floor(z - offset);
-        if (minZ < startZ)
-            minZ = startZ;
-        int maxX = ore_floor(x + offset);
+        int minX = floorToInt(n->x - n->radius), maxX = floorToInt(n->x + n->radius);
+        int minY = floorToInt(n->y - n->radius), maxY = floorToInt(n->y + n->radius);
+        int minZ = floorToInt(n->z - n->radius), maxZ = floorToInt(n->z + n->radius);
+        if (minX < v->boxMinX)
+            minX = v->boxMinX;
+        if (minY < v->boxMinY)
+            minY = v->boxMinY;
+        if (minZ < v->boxMinZ)
+            minZ = v->boxMinZ;
         if (maxX < minX)
             maxX = minX;
-        int maxY = ore_floor(y + offset);
         if (maxY < minY)
             maxY = minY;
-        int maxZ = ore_floor(z + offset);
         if (maxZ < minZ)
             maxZ = minZ;
-        for (int X = minX; X <= maxX; ++X) {
-            double xS = ((double)X + 0.5 - x) / offset;
-            if (xS * xS >= 1.0)
+        for (int x = minX; x <= maxX; ++x) {
+            double dx = ((double)x + 0.5 - n->x) / n->radius;
+            if (dx * dx >= 1.0)
                 continue;
-            for (int Y = minY; Y <= maxY; ++Y) {
-                double yS = ((double)Y + 0.5 - y) / offset;
-                if (xS * xS + yS * yS >= 1.0)
+            for (int y = minY; y <= maxY; ++y) {
+                double dy = ((double)y + 0.5 - n->y) / n->radius;
+                if (dx * dx + dy * dy >= 1.0)
                     continue;
-                for (int Z = minZ; Z <= maxZ; ++Z) {
-                    double zS = ((double)Z + 0.5 - z) / offset;
-                    if (xS * xS + yS * yS + zS * zS >= 1.0)
+                for (int z = minZ; z <= maxZ; ++z) {
+                    double dz = ((double)z + 0.5 - n->z) / n->radius;
+                    if (dx * dx + dy * dy + dz * dz >= 1.0)
                         continue;
-                    if (Y < minBuildHeight || Y >= maxBuildHeight)
+                    if (y < minBuildY || y >= maxBuildY)
                         continue;
-                    int area = X - startX + (Y - startY) * oreSize + (Z - startZ) * oreSize * radius;
-                    if (ORE_BITTEST(bitSet, area))
+                    int cell = x - v->boxMinX + (y - v->boxMinY) * v->boxSizeXZ +
+                               (z - v->boxMinZ) * v->boxSizeXZ * v->boxSizeY;
+                    if (seen[cell >> 3] & (char)(1 << (cell & 7)))
                         continue;
-                    ORE_BITSET(bitSet, area);
-                    // Tier-1: discard 0 -> append; discard 1 -> append (no nextFloat). Both append.
-                    oreEmit(em, X, Y, Z);
+                    seen[cell >> 3] |= (char)(1 << (cell & 7));
+                    emitCandidate(sink, x, y, z);
                 }
             }
         }
     }
 }
 
-// One ore *type* in one chunk. Appends candidate block positions to out. ORE_SKIP_SURFACE: no gate.
-ORE_HD static inline void generateOreType(uint64_t worldSeed, const OreCfg* c, int chunkX, int chunkZ,
-                                          OreEmit* em) {
-    uint64_t popSeed = getPopulationSeed(worldSeed, chunkX << 4, chunkZ << 4);
-    XR rnd;
-    xSetSeed(&rnd, popSeed + (uint64_t)c->index + 10000ULL * (uint64_t)c->step);
-
-    int repeat;
-    if (c->rare)
-        repeat = (xNextFloat(&rnd) < 1.0f / (float)c->repeatCount) ? 1 : 0;
-    else
-        repeat = c->repeatCount;
-
-    for (int it = 0; it < repeat; ++it) {
-        int bx = (chunkX << 4) + xNextIntJ(&rnd, 16);
-        int bz = (chunkZ << 4) + xNextIntJ(&rnd, 16);
-        int by = ore_height(c, &rnd);
-        // isViableOreBiome == true (overworld) for all ported families; no RNG consumed.
-        float angle = xNextFloat(&rnd) * (float)ORE_PI;
-        float fsize = (float)c->size / 8.0F;
-        int amort = (int)ceil(((float)c->size / 16.0F * 2.0F + 1.0F) / 2.0F);
-        double oXP = (double)bx + sin(angle) * (double)fsize, oXN = (double)bx - sin(angle) * (double)fsize;
-        double oZP = (double)bz + cos(angle) * (double)fsize, oZN = (double)bz - cos(angle) * (double)fsize;
-        double oYP = by + xNextIntJ(&rnd, 3) - 2, oYN = by + xNextIntJ(&rnd, 3) - 2;
-        int startX = bx - (int)ceil(fsize) - amort, startY = by - 2 - amort,
-            startZ = bz - (int)ceil(fsize) - amort;
-        int oreSize = 2 * ((int)ceil(fsize) + amort), radius = 2 * (2 + amort);
-#ifdef ORE_WITH_SURFACE
-        // host must provide: int ore_surface_floor(int x,int z) -> floor(mapApproxHeight)
-        int gated = 0;
-        for (int X = startX; X <= startX + oreSize && !gated; ++X)
-            for (int Z = startZ; Z <= startZ + oreSize; ++Z)
-                if (startY <= ore_surface_floor(X, Z)) {
-                    gated = 1;
-                    break;
-                }
-        if (!gated)
-            continue;
-#endif
-        generateVeinPart(c, &rnd, oXP, oXN, oZP, oZN, oYP, oYN, startX, startY, startZ, oreSize, radius, em);
+// All candidate blocks of one ore config in one chunk. Skips cubiomes' surface-height gate, which
+// never rejects a deepslate-band vein (that is why gravel and copper aren't generated this way).
+ORE_HD static inline void generateOreConfig(uint64_t worldSeed, const OreConfig* c, int chunkX, int chunkZ,
+                                            CandidateSink* sink) {
+    Xoroshiro rng = oreConfigRng(worldSeed, c, chunkX, chunkZ);
+    int attempts = veinAttempts(c, &rng);
+    for (int a = 0; a < attempts; ++a) {
+        VeinShape v = nextVeinShape(c, &rng, chunkX, chunkZ);
+        generateVeinPart(c, &rng, &v, sink);
     }
 }
 

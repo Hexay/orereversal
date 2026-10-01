@@ -1,11 +1,9 @@
-// oretest — CPU driver for the ported ore-gen (oregen.h). Mirrors region_dump.exe output
-// (CSV family,x,y,z over a chunk box + Y band) so we can diff for bit-exactness. 1.18 only.
+// oretest — host driver for oregen.h that prints harness/region_dump's CSV format, so the two can be
+// diffed for bit-exactness (tests/regress.sh "golden_diff"). 1.18 only.
 // Usage: oretest <seed> <cxMin> <cxMax> <czMin> <czMax> [yMin yMax]
 #include <stdio.h>
 #include <stdlib.h>
 #include "oregen.h"
-
-static const char* FAM_NAME[F_COUNT] = {"tuff", "redstone", "lapis", "gravel", "granite", "copper"};
 
 int main(int argc, char** argv) {
     if (argc < 6) {
@@ -20,28 +18,29 @@ int main(int argc, char** argv) {
         yMax = atoi(argv[7]);
     }
 
-    static OrePos buf[200000];
+    static OrePos positions[200000];
     printf("family,x,y,z\n");
     long total = 0;
-    for (int cx = cxMin; cx <= cxMax; cx++)
+    for (int cx = cxMin; cx <= cxMax; cx++) {
         for (int cz = czMin; cz <= czMax; cz++) {
-            for (int ci = 0; ci < ORE_NCFG; ci++) {
-                int n = 0;
-                OreEmit em;
-                memset(&em, 0, sizeof(em));
-                em.out = buf;
-                em.n = &n;
-                em.cap = (int)(sizeof(buf) / sizeof(buf[0]));
-                generateOreType(seed, &ORE_CFGS_118[ci], cx, cz, &em);
-                const char* fam = FAM_NAME[ORE_CFGS_118[ci].family];
-                for (int k = 0; k < n; k++) {
-                    if (buf[k].y < yMin || buf[k].y > yMax)
+            for (int c = 0; c < ORE_CONFIG_COUNT; c++) {
+                int count = 0;
+                CandidateSink sink;
+                memset(&sink, 0, sizeof(sink));
+                sink.list = positions;
+                sink.listCount = &count;
+                sink.listCapacity = (int)(sizeof(positions) / sizeof(positions[0]));
+                generateOreConfig(seed, &ORE_CONFIGS_118[c], cx, cz, &sink);
+                const char* family = FAMILY_NAMES[ORE_CONFIGS_118[c].family];
+                for (int k = 0; k < count; k++) {
+                    if (positions[k].y < yMin || positions[k].y > yMax)
                         continue;
-                    printf("%s,%d,%d,%d\n", fam, buf[k].x, buf[k].y, buf[k].z);
+                    printf("%s,%d,%d,%d\n", family, positions[k].x, positions[k].y, positions[k].z);
                     total++;
                 }
             }
         }
+    }
     fprintf(stderr, "emitted %ld candidate blocks\n", total);
     return 0;
 }
