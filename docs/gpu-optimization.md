@@ -131,3 +131,17 @@ Findings, in order:
   AT THE LIMIT for this algorithm: kFill is at its analytic-union floor (Option C), kScore at its locality
   floor (97.6% L2), no spatial sparsity to exploit. Remaining options are <10% micro-tuning or HARDWARE
   (full-rate-FP64 A100/H100, off the table). The perf arc is DONE.
+
+## 2026-10 profiling pass (after the readability refactor)
+
+Re-profiled with Nsight Systems (64 tiles, 2048^2 chunks) and Nsight Compute (one tile):
+kFillVeins 56%, kScoreHypotheses 32%, kSetupVeins 11%, sort <1%. The "at the limit" verdict above was
+wrong for kFillVeins: its FP64 pipe was 83% busy, and the bulk of that was the windowed containment cull
+(~16 neighbours x ~8 FP64 ops per node at 1/64 rate), not the fill.
+
+10. **FP32 containment cull (generation 1785 -> 1058 ms median, -41%; interleaved A/B, 6 rounds).** The
+    cull only decides which spheres to skip, and keeping a contained sphere is harmless, so it runs on the
+    box-relative FP32 copies and culls only when containment exceeds CULL_EPS=1e-2 (in squared units),
+    far above FP32/FP64 rounding. Validated: regress.sh byte-identical incl. --legacy-gen parity, and
+    identical survivor counts (0.9-4.9M each) for 5 seeds x 3 observations at --minfrac 0.15 over 512^2
+    chunks. The only output differences were tie orderings that the old build also flips run to run.

@@ -99,21 +99,22 @@ struct NodeF32 {
     float x, y, z, radiusSq;
 };
 
-// Approximate (windowed) version of cullContainedNodes. Missing a contained node is harmless: its blocks
-// are a subset of its container's, and the grid is a union.
-__device__ __forceinline__ void cullContainedNeighbors(const VeinNode* nodes, int count, unsigned char* alive,
-                                                       int lane) {
+// Approximate version of cullContainedNodes: windowed, and in FP32. Keeping a contained node is harmless
+// (its blocks are a subset of its container's and the grid is a union), so a node is only culled when it
+// is contained by more than CULL_EPS, which dwarfs FP32 and FP64 rounding: no block changes.
+__device__ __forceinline__ void cullContainedNeighbors(const NodeF32* nodes, const float* radius, int count,
+                                                       unsigned char* alive, int lane) {
+    const float CULL_EPS = 1e-2f;
     for (int j = lane; j < count; j += 32) {
-        double xj = nodes[j].x, yj = nodes[j].y, zj = nodes[j].z, rj = nodes[j].radius;
+        NodeF32 nj = nodes[j];
+        float rj = radius[j];
         int lo = max(j - CULL_WINDOW, 0), hi = min(j + CULL_WINDOW, count - 1);
         for (int i = lo; i <= hi; i++) {
-            if (i == j)
+            float dr = radius[i] - rj;
+            if (i == j || dr <= 0.0f)
                 continue;
-            double dr = nodes[i].radius - rj;
-            if (dr <= 0.0)
-                continue;
-            double dx = nodes[i].x - xj, dy = nodes[i].y - yj, dz = nodes[i].z - zj;
-            if (dr * dr > dx * dx + dy * dy + dz * dz) {
+            float dx = nodes[i].x - nj.x, dy = nodes[i].y - nj.y, dz = nodes[i].z - nj.z;
+            if (dr * dr > dx * dx + dy * dy + dz * dz + CULL_EPS) {
                 alive[j] = 0;
                 break;
             }
@@ -198,9 +199,11 @@ __global__ void __launch_bounds__(FILL_BLOCK_SIZE)
                int veinCount, int* nextVein) {
     __shared__ unsigned char sharedAlive[WARPS_PER_BLOCK][MAX_VEIN_NODES];
     __shared__ NodeF32 sharedNodesF32[WARPS_PER_BLOCK][MAX_VEIN_NODES];
+    __shared__ float sharedRadiusF32[WARPS_PER_BLOCK][MAX_VEIN_NODES];
     int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     unsigned char* alive = sharedAlive[warp];
     NodeF32* nodesF32 = sharedNodesF32[warp];
+    float* radiusF32 = sharedRadiusF32[warp];
     for (;;) {
         int veinIndex;
         if (lane == 0)
@@ -211,19 +214,18 @@ __global__ void __launch_bounds__(FILL_BLOCK_SIZE)
         VeinRecord v = veins[veinIndex];
         const VeinNode* nodes = allNodes + v.firstNode;
 
-        for (int i = lane; i < v.nodeCount; i += 32)
-            alive[i] = 1;
-        __syncwarp();
-        cullContainedNeighbors(nodes, v.nodeCount, alive, lane);
-        __syncwarp();
-        // Box-relative offsets keep the FP32 values small, so they are exact enough for the EPS margin.
+        // Box-relative offsets keep the FP32 values small, so they are exact enough for the EPS margins.
         for (int i = lane; i < v.nodeCount; i += 32) {
             double r = nodes[i].radius;
             nodesF32[i].x = (float)(nodes[i].x - v.boxMinX);
             nodesF32[i].y = (float)(nodes[i].y - v.boxMinY);
             nodesF32[i].z = (float)(nodes[i].z - v.boxMinZ);
             nodesF32[i].radiusSq = (float)(r * r);
+            radiusF32[i] = (float)r;
+            alive[i] = 1;
         }
+        __syncwarp();
+        cullContainedNeighbors(nodesF32, radiusF32, v.nodeCount, alive, lane);
         __syncwarp();
 
         for (int column = lane; column < v.boxSizeXZ * v.boxSizeY; column += 32) {
