@@ -1,0 +1,4 @@
+[tool.ruff]
+line-length = 110
+# Frozen research snapshot cited by docs/research-log.md; keep it byte-identical.
+extend-exclude = ["python/research"]

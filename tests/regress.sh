@@ -3,6 +3,7 @@
 #   bash tests/regress.sh            compare (exit 1 on any difference)
 #   bash tests/regress.sh --update   regenerate the expected outputs
 #   bash tests/regress.sh --python   also run the (slow, ~1 min) Python solver case
+#   bash tests/regress.sh --build    rebuild harness + cuda first
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -10,16 +11,25 @@ EXP=tests/expected
 TMP=tests/tmp
 mkdir -p "$EXP" "$TMP"
 
-UPDATE=0; WITH_PY=0
+UPDATE=0; WITH_PY=0; BUILD=0
 for a in "$@"; do
   case "$a" in
     --update) UPDATE=1 ;;
     --python) WITH_PY=1 ;;
+    --build) BUILD=1 ;;
     *) echo "unknown option: $a"; exit 2 ;;
   esac
 done
 
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) EXE=.exe ;; *) EXE= ;; esac
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WINDOWS=1; EXE=.exe ;; *) WINDOWS=0; EXE= ;; esac
+
+if [ $BUILD = 1 ]; then
+  bash harness/build.sh > "$TMP/build.log" 2>&1 || { tail -20 "$TMP/build.log"; exit 1; }
+  if [ $WINDOWS = 1 ]; then cmd //c "cuda\\rebuild.bat" >> "$TMP/build.log" 2>&1
+  else bash cuda/build.sh >> "$TMP/build.log" 2>&1; fi
+  if grep -q -E "exit=[1-9]|error" "$TMP/build.log"; then grep -E -B2 -A4 "error|exit=[1-9]" "$TMP/build.log" | head -40; exit 1; fi
+  echo "build ok ($(grep -c -i warning "$TMP/build.log") warnings)"
+fi
 MATCHER=cuda/matcher$EXE
 ORETEST=cuda/oretest$EXE
 REGION_DUMP=harness/region_dump$EXE
