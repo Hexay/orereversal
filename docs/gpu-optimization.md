@@ -145,3 +145,11 @@ wrong for kFillVeins: its FP64 pipe was 83% busy, and the bulk of that was the w
     far above FP32/FP64 rounding. Validated: regress.sh byte-identical incl. --legacy-gen parity, and
     identical survivor counts (0.9-4.9M each) for 5 seeds x 3 observations at --minfrac 0.15 over 512^2
     chunks. The only output differences were tie orderings that the old build also flips run to run.
+- kScoreHypotheses precomputed probe offsets: TRIED, REVERTED (2026-10-01). Per (cell, orientation)
+  int32 bit offsets relative to the anchor, computed per tile, replacing the orientation loop, x/z bounds
+  checks and per-probe index math (the margin guarantees probes stay in the grid). Score 847 -> 805 ms
+  (-5%, ~2% of total) for a second code path plus a kernel. Not worth it; the remaining per-probe cost is
+  the cell load, y-band test, family offset and bit extraction.
+- CUB radix sort with persistent temp storage and only the used key bits, instead of thrust::sort_by_key:
+  TRIED, REVERTED (2026-10-01). ~1% wall. Most of nsys' cudaMalloc/cudaFree time was the one-off startup
+  allocations, not thrust's per-tile temp storage. Not worth +512 MB of double buffers.
