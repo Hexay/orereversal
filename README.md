@@ -119,7 +119,7 @@ Real worldgen couples ore to terrain in three ways. Only some families survive a
 the 1.18 ore configs:
 
 ```sh
-git clone https://github.com/Hexay/oreReversal.git orereversal
+git clone https://github.com/Hexay/orereversal.git
 cd orereversal
 git clone https://github.com/xpple/cubiomes.git
 git -C cubiomes checkout 62007b8c6260290a3951f8ea9ce4a41e60dd1b54
