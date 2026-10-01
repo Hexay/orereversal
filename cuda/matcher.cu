@@ -6,7 +6,7 @@
 //     (compacted) merge into a global top-K.
 //   PASS 2 (CPU refine): re-score the top-K with all 7 families (gravel/copper/iron from region_dump.exe)
 //     so their margin is recovered without per-tile injection. iron is not bit-exact (ore-vein noise).
-// Validated vs solve.py + the single-region matcher on the real test world (cuda/README, NOTES P3).
+// Validated vs solve.py + the single-region matcher on the real test world (cuda/README.md, docs/research-log.md P3).
 //
 // Split across the TU (nvcc compiles this file only; the rest are headers it includes):
 //   matcher_common.h    — family maps, occ probes, Result/ObsCell, orient_xz, and the name glossary.
@@ -81,8 +81,9 @@ int main(int argc,char**argv){
     int nSel=(int)selCfg.size(); int* dSelCfg; CK(cudaMalloc(&dSelCfg,nSel*sizeof(int)));
     CK(cudaMemcpy(dSelCfg,selCfg.data(),nSel*sizeof(int),cudaMemcpyHostToDevice));
     { printf("gen-gating: %d/%d configs [", nSel, N_ACTIVE_CFG);
-      bool seen[NGPU]={false}; for(int s:selCfg){ int fa=famActive(ORE_CFGS_118[s].family);
-          if(!seen[fa]){ printf("%s%s", FAMNAME[ORE_CFGS_118[s].family], ""); seen[fa]=true; } }
+      bool seen[NGPU]={false}; const char* sep="";
+      for(int s:selCfg){ int fa=famActive(ORE_CFGS_118[s].family);
+          if(!seen[fa]){ printf("%s%s", sep, FAMNAME[ORE_CFGS_118[s].family]); sep=","; seen[fa]=true; } }
       printf("]%s\n", needAll?" (all GPU families: bare-absence)":" (rare-gated)"); }
 
     // buffers sized for the largest tile (+margin)
@@ -187,22 +188,23 @@ int main(int argc,char**argv){
     printf("[timing] kGenerate=%.0f ms (kSetup=%.0f kFill=%.0f) | kScore=%.0f ms | gen/score=%.2f\n",msGen,msSetup,msGen-msSetup,msScore,msScore>0?msGen/msScore:0);
 
     if(!refine){
-        printf("\n%4s %22s %12s %7s %8s %8s %9s\n","rank","world_origin","chunk","orient","pres4","absH4","final4");
+        printf("\n(GPU families only: tuff/redstone/lapis/granite)\n");
+        printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present","absH","final");
         for(size_t i=0;i<top.size()&&i<10;i++){ auto&t=top[i]; char o[24],ch[16];
             snprintf(o,sizeof(o),"(%d, %d, %d)",t.ox,t.oy,t.oz); snprintf(ch,sizeof(ch),"(%d, %d)",t.ox>>4,t.oz>>4);
-            printf("%4zu %22s %12s    r%dm%d %d/%zu %8d %9.1f\n",i+1,o,ch,t.r,t.mir,t.pres,ore.size(),t.absH,t.fin); }
+            printf("%4zu %22s %12s    r%dm%d %d/%d %8d %9.1f\n",i+1,o,ch,t.r,t.mir,t.pres,nOreGpu,t.absH,t.fin); }
         if(top.size()>=2){ float m=top[0].fin-top[1].fin;
-            printf("\ntop_final4=%.1f margin=%.1f => %s\n",top[0].fin,m,(m>=std::max(3.0,0.3*ore.size()))?"CONFIDENT":"shortlist"); }
+            printf("\ntop_final=%.1f margin=%.1f => %s\n",top[0].fin,m,(m>=std::max(3.0,0.3*nOreGpu))?"CONFIDENT":"shortlist"); }
         return 0;
     }
     int gravelMax=cnt[4]+cnt[5]+cnt[6];   // max margin gravel/copper/iron can add to any hypothesis
     std::vector<Refined> rf; refineTop(seed,top,nRefine,ore,bare,maxExt,w,gravelMax,rf);
     printf("\n(refined top %d with all 7 families incl. gravel/copper/iron)\n",(int)std::min((size_t)nRefine,top.size()));
-    printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present6","absH6","final6");
+    printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present","absH","final");
     for(size_t i=0;i<rf.size()&&i<10;i++){ auto&t=rf[i]; char o[24],ch[16];
         snprintf(o,sizeof(o),"(%d, %d, %d)",t.r.ox,t.r.oy,t.r.oz); snprintf(ch,sizeof(ch),"(%d, %d)",t.r.ox>>4,t.r.oz>>4);
-        printf("%4zu %22s %12s    r%dm%d %d/%zu %8d %9.1f\n",i+1,o,ch,t.r.r,t.r.mir,t.pres6,ore.size(),t.absH6,t.fin6); }
-    if(rf.size()>=2){ float m=rf[0].fin6-rf[1].fin6;
-        printf("\ntop_final6=%.1f margin=%.1f => %s\n",rf[0].fin6,m,(m>=std::max(3.0,0.3*ore.size()))?"CONFIDENT (unique)":"shortlist"); }
+        printf("%4zu %22s %12s    r%dm%d %d/%zu %8d %9.1f\n",i+1,o,ch,t.r.r,t.r.mir,t.pres,ore.size(),t.absH,t.fin); }
+    if(rf.size()>=2){ float m=rf[0].fin-rf[1].fin;
+        printf("\ntop_final=%.1f margin=%.1f => %s\n",rf[0].fin,m,(m>=std::max(3.0,0.3*ore.size()))?"CONFIDENT (unique)":"shortlist"); }
     return 0;
 }

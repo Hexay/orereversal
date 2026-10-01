@@ -3,7 +3,7 @@
 #   1. cluster sparse ore candidates into veins (connected components),
 #   2. match on vein centroids (anchor-align one vein, verify the rest land near a same-family vein),
 #   3. sweep region size to extrapolate the false-positive margin toward world scale.
-# Dense tuff/gravel are excluded entirely — they don't establish uniqueness. See NOTES.md.
+# Dense tuff/gravel are excluded entirely — they don't establish uniqueness. See docs/research-log.md.
 import matcher as M
 import matcher_room as R3
 import collections, math

@@ -1,4 +1,4 @@
-# solve.py — consume an ore observation (see OBSERVATION_FORMAT.md) and return ranked candidate world
+# solve.py — consume an ore observation (see docs/observation-format.md) and return ranked candidate world
 # locations for a known seed. Two-stage, recall-safe:
 #   stage 1 (presence): anchor-enumeration (every region candidate of the rarest observed family is a
 #     hypothesis -> true location never dropped) + full-score ore cells vs dilated candidate sets. The true
@@ -6,10 +6,8 @@
 #   stage 2 (soft absence): on the top presence survivors, penalize ore predicted on 'bare' cells.
 #     final = presence - w * absence_hits. Crushes false positives, esp. via the dense families.
 # Bounded region here (CPU). World-scale = GPU phase (same logic).
-import matcher as M
+import candidates as C
 import argparse, csv, collections
-
-USABLE = {"tuff","redstone","lapis","gravel","granite","copper"}
 
 def orient_xz(x,z,r,mir):
     x*=mir
@@ -36,7 +34,7 @@ def load_obs(path):
 
 def solve(cand, ore, bare, e, w=1.0, topk=300, topn=8):
     D=2*e
-    dil={f:dilate(s,D) for f,s in cand.items() if any(o[3]==f for o in ore) or f in USABLE}
+    dil={f:dilate(s,D) for f,s in cand.items() if any(o[3]==f for o in ore) or f in C.USABLE}
     combined=set().union(*[dil[f] for f in dil]) if dil else set()   # "any usable ore here" (for absence)
     fams=[f for f in {o[3] for o in ore} if cand.get(f)]
     if not fams: return [], None, 0
@@ -88,10 +86,9 @@ def main():
     ap.add_argument("--error", type=int, default=0)
     ap.add_argument("--absence-weight", type=float, default=1.0)
     a=ap.parse_args()
-    M.SEED, M.VERSION = a.seed, a.version
     ore,bare=load_obs(a.observation)
     R=a.region
-    cand=M.region_dump(-R-1,R+1,-R-1,R+1)
+    cand=C.region_dump(a.seed,a.version,-R-1,R+1,-R-1,R+1)
     res,anchor,nhyp=solve(cand, ore, bare, a.error, a.absence_weight)
     print(f"obs: {len(ore)} ore + {len(bare)} bare | search {(2*R+1)**2} ch | anchor={anchor} hyps={nhyp} err=+-{a.error} w={a.absence_weight}")
     if not res: print("no candidates."); return

@@ -2,22 +2,18 @@
 # Pick a SECRET chunk + carved wall -> expose its Tier-1 ores onto a 2D plane (drop depth, forget
 # absolute pos & orientation, optionally add reading noise) -> hand only that typed point-set to the
 # matcher -> confirm it recovers the secret location, AND quantify the margin so we can reason about
-# WORLD-scale uniqueness, not just the small test region. See NOTES.md.
-import subprocess, collections, os, sys, math
+# WORLD-scale uniqueness, not just the small test region. See docs/research-log.md.
+import collections, os, sys, math
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # python/ for candidates
+import candidates
 
-EXE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "harness", "region_dump.exe"))
 SEED, VERSION = "123", "1.18"
 ABUND = ["lapis","copper","granite","redstone","gravel","tuff"]   # sparsest first
 DENSE = {"tuff","gravel"}
 WORLD_CHUNKS = 3_750_000**2   # ~1.4e13
 
 def region_dump(cxlo,cxhi,czlo,czhi,ylo=-64,yhi=-1):
-    r = subprocess.run([EXE,SEED,VERSION,str(cxlo),str(cxhi),str(czlo),str(czhi),str(ylo),str(yhi)],
-                       capture_output=True,text=True)
-    cand = collections.defaultdict(set)
-    for ln in r.stdout.splitlines()[1:]:
-        f,x,y,z = ln.split(","); cand[f].add((int(x),int(y),int(z)))
-    return cand
+    return candidates.region_dump(SEED,VERSION,cxlo,cxhi,czlo,czhi,ylo,yhi)
 
 def occupancy(cand, R, ylo, yhi):
     cells = ((2*R+3)*16)**2 * (yhi-ylo+1)          # region volume (with margin) in blocks

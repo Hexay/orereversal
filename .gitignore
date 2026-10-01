@@ -10,7 +10,7 @@
 *.so
 *.dll
 
-# ---- third-party (clone separately; see README "Building") ----
+# ---- third-party (clone separately; see README "Quick start") ----
 # cubiomes is a shallow clone of xpple/cubiomes @ 62007b8 (MIT). Not vendored.
 cubiomes/
 
@@ -25,7 +25,7 @@ mushroom/
 # decoration-reversal experiment
 other/
 # regenerable sweep/scratch observations
-matcher/examples/_*.csv
+examples/_*.csv
 
 # ---- machine-specific toolchain bootstrap (hardcoded local paths) ----
 buildtools.ps1

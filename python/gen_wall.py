@@ -1,10 +1,8 @@
 # Emit a FLAT exposed-wall observation: a single vertical face (constant x), W wide x H tall.
 # Models digging a flat wall and reading the block at each exposed face cell. One block deep -> no
 # 3D shell, far less fine structure than a carved room. For testing how much info a wall carries.
-import matcher as M
+import candidates as C
 import argparse, collections
-
-USABLE = {"tuff","redstone","lapis","gravel","granite","copper"}
 
 def main():
     ap=argparse.ArgumentParser()
@@ -16,12 +14,9 @@ def main():
     ap.add_argument("--h", type=int, default=10)       # wall height (along y)
     ap.add_argument("--out", required=True)
     a=ap.parse_args()
-    M.SEED = a.seed
     cx,cz = a.x0>>4, a.z0>>4
-    local = M.region_dump(cx-2,cx+2,cz-2,((a.z0+a.w)>>4)+2)
-    fam_at={}
-    for f in USABLE:
-        for p in local.get(f,()): fam_at[p]=f
+    local = C.region_dump(a.seed,"1.18",cx-2,cx+2,cz-2,((a.z0+a.w)>>4)+2)
+    fam_at=C.family_at(local)
     fc=collections.Counter()
     with open(a.out,"w") as f:
         f.write("family,x,y,z\n")

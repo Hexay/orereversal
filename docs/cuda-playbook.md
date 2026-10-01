@@ -1,8 +1,8 @@
 # CUDA bit-exact reversing — paradigms & playbook
 
 A reusable methodology for porting a reference generator (Minecraft / cubiomes, or any
-deterministic algorithm) to CUDA for large-scale search, distilled from the `oreReversal/cuda`
-project. Project-agnostic — copy this into a new repo and follow it.
+deterministic algorithm) to CUDA for large-scale search, distilled from orereversal's
+[`cuda/`](../cuda). Project-agnostic — copy this into a new repo and follow it.
 
 Core principle: **bit-exactness is a proven property, never an assumption.** Every optimization
 is validated byte-identical against a reference you always keep. Predictability > cleverness.
@@ -107,7 +107,7 @@ This is a loop, run with `ncu` (enable: NVIDIA CP → Developer → Manage GPU P
 5. **Validate every step.** "Top-3 byte-identical, deep-tail wobble is pre-existing atomic-race
    noise" — distinguish your change's effect from baseline nondeterminism.
 
-## 7. The lab notebook (NOTES.md) — record dead-ends
+## 7. The lab notebook (here: [research-log.md](research-log.md)) — record dead-ends
 
 Keep a running notebook. For every optimization tried, record the result AND the ones that
 **failed**, marked `DEAD-END (measured <date>, don't re-try)` with the reason:

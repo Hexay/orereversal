@@ -2,7 +2,7 @@
 // Emits CSV (family,x,y,z) for every candidate ore block in a chunk box, within a Y band.
 // One process for a whole region (vs ore_dump's single chunk) so the matcher gets a fast feed.
 // These are RNG candidate positions (real ores are a subset); only the discard-free Tier-1 families
-// that we validated as bit-exact are emitted. See NOTES.md.
+// that we validated as bit-exact are emitted. See docs/research-log.md.
 //
 // Usage: region_dump <seed> <version> <cxMin> <cxMax> <czMin> <czMax> [yMin yMax] [family ...]
 //   default Y band: -64..-1 (deepslate). Optional family filter (tuff redstone lapis gravel granite copper).

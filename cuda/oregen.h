@@ -1,6 +1,6 @@
 // oregen.h — portable (host + CUDA device) port of cubiomes' 1.18+ Tier-1 ore generation.
 // Hand-ported from xpple/cubiomes finders.c/rng.h. Bit-exactness is verified by diffing the CPU
-// driver (oretest.c) against region_dump.exe — see cuda/README. Only the discard-free Tier-1
+// driver (oretest.c) against region_dump.exe — see cuda/README.md. Only the discard-free Tier-1
 // families we validated are ported; the biome system is omitted (all these ores are isOverworld =
 // always viable, no RNG cost) so LargeCopperOre (dripstone/deep_dark gated) is excluded.
 //
@@ -27,7 +27,7 @@
 // ---- Tier-1 family ids (stable, used by driver + matcher) ----
 // GPU-ACTIVE (bit-exact w/o surface noise): tuff, redstone, lapis, granite.
 // DEFERRED (need the mapApproxHeight surface gate; high Y-range desyncs RNG): gravel, copper.
-// Verified bit-exact vs region_dump.exe over 64 chunks (cuda/README). See NOTES.md P3.
+// Verified bit-exact vs region_dump.exe over 64 chunks (cuda/README.md). See docs/research-log.md P3.
 enum { F_TUFF=0, F_REDSTONE, F_LAPIS, F_GRAVEL, F_GRANITE, F_COPPER, F_IRON, F_COUNT };
 #define ORE_GPU_ACTIVE(fam) ((fam)==F_TUFF||(fam)==F_REDSTONE||(fam)==F_LAPIS||(fam)==F_GRANITE)
 

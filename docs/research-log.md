@@ -181,7 +181,7 @@ for redstone/lapis; anything else needs the stone-cell test first.
 - Diamond/gold/coal remain excluded unless we later add a partial terrain (stone-cell) sim.
 
 ## P2 — synthetic round-trip matcher (2026-06-17): CONCEPT PROVEN, with caveats
-Files: `harness/region_dump.c` (bulk Tier-1 candidate gen over a chunk box) + `matcher/matcher.py`
+Files: `harness/region_dump.c` (bulk Tier-1 candidate gen over a chunk box) + `python/research/matcher.py`
 (secret chunk -> expose ores on a 2D plane, drop depth/abs-pos/orientation, optional ±1 noise ->
 anchor-alignment match over all 4 orientations -> recover location). Region 25x25 chunks, seed 123, 1.18.
 
@@ -216,7 +216,7 @@ Results (margin = separation between truth and best wrong location):
 - Harden matcher to RANSAC/Hough origin-voting for robust noise handling.
 
 ## P2b — carved-room 3D matcher + world-scale uniqueness (2026-06-17)
-File: `matcher/matcher_room.py`. Room = carved air box; observed = ore candidates on its 1-block inner
+File: `python/research/matcher_room.py`. Room = carved air box; observed = ore candidates on its 1-block inner
 shell -> full 3D relative typed points (depth known). Orientation unknown -> 8 (4 rotations x mirror).
 World-FP estimate = 8 * occ[anchor]*world_cells * PROD(p_hit over OTHER sparse points); <1 => world-unique.
 (Dense tuff/gravel excluded from the FP product — correlated blobs can't establish uniqueness.)
@@ -240,7 +240,7 @@ Results (seed 123, 1.18, deepslate band):
    is empirically robust regardless.
 
 ## P2c — vein-level uniqueness (2026-06-17): PIVOTAL FINDING — noise is the whole game
-File: `matcher/matcher_vein.py`. Clustered sparse candidates into veins (connected components), matched on
+File: `python/research/matcher_vein.py`. Clustered sparse candidates into veins (connected components), matched on
 vein centroids (anchor-align + verify others within tolerance VTOL=4), swept region size R=3..18.
 
 Result for the 32^3 room: 24 sparse blocks collapsed to just **8 sparse veins (7 redstone + 1 lapis)**, and
@@ -269,7 +269,7 @@ unique at vein resolution. This flatly contradicts the block-level margin of 247
   tolerance). Vein-centroid matching is the wrong abstraction — it discards the discriminating detail.
 
 ## P2d — precision budget (2026-06-17): WORLD-SCALE VIABILITY PROVEN for a large room
-File: `matcher/matcher_budget.py`. Noise-robust matcher = Hough voting (every sparse point votes on the
+File: `python/research/matcher_budget.py`. Noise-robust matcher = Hough voting (every sparse point votes on the
 (orientation,translation) hypothesis -> no single-anchor bias; coarse bins of 2e+1 absorb noise), then
 SCORE top hypotheses with the FULL ore set (all families, incl. dense) at per-block tolerance = reading
 error e. Big room = ~650 exposed ore blocks, 24 sparse.
@@ -299,7 +299,7 @@ cannot fake even over 3249 chunks.
   ICP refinement). Discriminating power is proven; the search must not lose the needle.
 
 ## P2e — recall-safe matcher (2026-06-17): DONE
-File: `matcher/matcher_robust.py`. Fix for the dropped-hypothesis artifact = anchor ENUMERATION: every
+File: `python/research/matcher_robust.py`. Fix for the dropped-hypothesis artifact = anchor ENUMERATION: every
 region candidate of the rarest observed family is a hypothesis (true anchor always enumerated -> cannot be
 dropped), full-scored against DILATED candidate sets (radius 2e -> O(1) tolerance membership, absorbs
 single-anchor + per-point reading noise). Results: e=0 over 729 chunks -> 101544 hyps, best 654/654, TRUTH
@@ -314,11 +314,11 @@ scale is the GPU's job.
 ## P5 — observation format + solver consumer (2026-06-17): DONE (end-to-end)
 Input is EXACT 3D block data (user will extract via world-copy/mod later, not noisy screenshots) -> the
 strong case: exact coords, real 3D, all usable families incl. tuff. My side = the consumer:
-- `matcher/OBSERVATION_FORMAT.md` — CSV `family,x,y,z` (relative coords ok; orientation brute-forced;
+- `docs/observation-format.md` — CSV `family,x,y,z` (relative coords ok; orientation brute-forced;
   y=vertical; usable families only: tuff/redstone/lapis/gravel/granite/copper).
-- `matcher/make_observation.py` — generates example/test observation from a known location (also the spec
-  the extraction mod should emit). Example: `matcher/examples/obs_big_room.csv`.
-- `matcher/solve.py` — recall-safe matcher (anchor-enumeration + dilated O(1) scoring, 8 orientations) ->
+- `python/make_observation.py` — generates example/test observation from a known location (also the spec
+  the extraction mod should emit). Example: `examples/obs_big_room.csv`.
+- `python/solve.py` — recall-safe matcher (anchor-enumeration + dilated O(1) scoring, 8 orientations) ->
   ranked candidate world locations + confidence verdict. `--error N` for +-N tolerance, `--region R` box.
 END-TO-END TEST: generated 654-block obs at secret origin (-6,-52,-6) chunk (-1,-1); solve.py blind-recovered
 rank1 = (-6,-52,-6) chunk (-1,-1) score 654/654, next distinct 302, margin 265 -> CONFIDENT (unique). PASS.
@@ -375,7 +375,7 @@ RESOLVES pre-port question #2 (labeling of non-usable exposed cells) WITH DATA:
   inside lava/air cells that A wrongly called bare. Still localized here, but a real self-penalty.
 - Policy B "only stone/deepslate = bare; omit air/lava/water + gold/coal/diamond/iron + andesite/diorite":
   true-loc absHits 0, margin HIGHER (574 vs 547). ADOPTED. Simpler for the mod (two allowlists, no exception
-  list). OBSERVATION_FORMAT.md updated with the emit rule.
+  list). observation-format.md updated with the emit rule.
 
 ## P3 — CUDA port (2026-06-17): GENERATOR BIT-EXACT + GPU MATCHER VALIDATED (see cuda/)
 Hand-ported cubiomes 1.18+ ore-gen to portable host+device C (cuda/oregen.h): xoroshiro128++,
@@ -689,4 +689,4 @@ The ONLY remaining levers are non-algorithmic: parallelism (multi-GPU/cloud) or 
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU
 matcher validated end-to-end on real data (P3). Remaining:
 **P3 (GPU port** for world-scale search SPEED — same format/logic; toolchain now installed) and the user's
-extraction mod (emits OBSERVATION_FORMAT.md incl. `bare` cells).
+extraction mod (emits observation-format.md incl. `bare` cells).

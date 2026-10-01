@@ -26,7 +26,7 @@ static void loadObs(const char*path,std::vector<ObsCell>&ore,std::vector<ObsCell
 
 // ---- CPU refine: full 7-family score of one hypothesis over a small window (gravel/copper/iron injected) ----
 static inline long key3(int x,int y,int z){ return (((long)(x+1000000))*512 + (y+64))* (long)2000000 + (z+1000000); }
-struct Refined { Result r; int pres6; int absH6; float fin6; };
+struct Refined { Result r; int pres; int absH; float fin; };
 
 static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
         const std::vector<ObsCell>&ore,const std::vector<ObsCell>&bare,
@@ -74,6 +74,6 @@ static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
             for(int fa=0;fa<NACTIVE;fa++) if(occ[fa].count(k)){any=true;break;} if(any) absH++; }
         outv[t]={R,pres,absH,pres-w*absH};
     }
-    std::sort(outv.begin(),outv.end(),[](const Refined&a,const Refined&b){return a.fin6>b.fin6;});
+    std::sort(outv.begin(),outv.end(),[](const Refined&a,const Refined&b){return a.fin>b.fin;});
 }
 #endif

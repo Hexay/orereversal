@@ -2,7 +2,7 @@
 // Dumps cubiomes' predicted ore *candidate* block positions for a given
 // seed / MC version / chunk. Output is CSV (ore,index,x,y,z) sorted for stable
 // diffing against ground truth. These are RNG candidate positions only: cubiomes
-// does NOT apply the replace-block / air-exposure filters (see NOTES.md), so real
+// does NOT apply the replace-block / air-exposure filters (see docs/research-log.md), so real
 // in-game ores are a SUBSET of this output.
 //
 // Usage:

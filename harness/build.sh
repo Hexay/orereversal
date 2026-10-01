@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build cubiomes (static, MinGW) + the ore_dump harness. Run from repo root or here.
+# Build cubiomes (static, MinGW) + the region_dump/ore_dump harness. Run from repo root or here.
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -11,5 +11,7 @@ if [ ! -f cubiomes/build/libcubiomes_static.a ]; then
 fi
 
 # 2. harness
-gcc -O2 -Icubiomes harness/ore_dump.c cubiomes/build/libcubiomes_static.a -lm -o harness/ore_dump.exe
-echo "built harness/ore_dump.exe"
+for t in region_dump ore_dump; do
+  gcc -O2 -Icubiomes harness/$t.c cubiomes/build/libcubiomes_static.a -lm -o harness/$t.exe
+  echo "built harness/$t.exe"
+done
