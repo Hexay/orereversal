@@ -9,6 +9,11 @@
 *.a
 *.so
 *.dll
+# Linux binaries (no extension)
+/cuda/matcher
+/cuda/oretest
+/harness/region_dump
+/harness/ore_dump
 
 # ---- third-party (clone separately; see README "Quick start") ----
 # cubiomes is a shallow clone of xpple/cubiomes @ 62007b8 (MIT). Not vendored.

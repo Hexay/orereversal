@@ -33,9 +33,9 @@
 int main(int argc,char**argv){
     if(argc<7){ fprintf(stderr,"usage: %s <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [--error E] [--absw W] [--minfrac F] [--tile T] [--topk K] [--refine N] [--no-refine] [--legacy-gen]\n",argv[0]); return 2; }
     uint64_t seed=(uint64_t)strtoll(argv[1],NULL,10);
-    // resolve region_dump.exe relative to this exe's dir (../harness/), robust to CWD
+    // resolve region_dump relative to this binary's dir (../harness/), robust to CWD
     { const char*a=argv[0]; int cut=-1; for(int i=0;a[i];i++) if(a[i]=='/'||a[i]=='\\') cut=i;
-      if(cut>=0) snprintf(g_rdexe,sizeof(g_rdexe),"%.*s\\..\\harness\\region_dump.exe",cut,a); }
+      if(cut>=0) snprintf(g_rdexe,sizeof(g_rdexe),"%.*s" PATHSEP RD_RELPATH,cut,a); }
     int cxMin=atoi(argv[2]),cxMax=atoi(argv[3]),czMin=atoi(argv[4]),czMax=atoi(argv[5]);
     const char* obspath=argv[6];
     int e=0,tile=256,topk=4096,nRefine=64; float w=1.0f,minFrac=0.5f; bool refine=true; bool useCoop=true; bool gateOff=false;
@@ -51,6 +51,9 @@ int main(int argc,char**argv){
         else if(!strcmp(argv[i],"--no-gate")) gateOff=true;
     }
     if(tile>320){ fprintf(stderr,"warning: tile>320 risks a Windows TDR kill (kScore launch >2s); clamping to 256\n"); tile=256; }
+    if(refine){ FILE*t=fopen(g_rdexe,"rb");   // refine would otherwise silently score without gravel/copper/iron
+        if(!t){ fprintf(stderr,"region_dump not found at %s — run harness/build.sh, or pass --no-refine\n",g_rdexe); return 1; }
+        fclose(t); }
     std::vector<ObsCell> ore,bare; loadObs(obspath,ore,bare);
     int cnt[NACTIVE]={0}; for(auto&o:ore) cnt[o.fam]++;
     // PASS1 occ holds only the NGPU generated families, so it can only score those. Partition the GPU
@@ -198,7 +201,7 @@ int main(int argc,char**argv){
         return 0;
     }
     int gravelMax=cnt[4]+cnt[5]+cnt[6];   // max margin gravel/copper/iron can add to any hypothesis
-    std::vector<Refined> rf; refineTop(seed,top,nRefine,ore,bare,maxExt,w,gravelMax,rf);
+    std::vector<Refined> rf; refineTop(seed,top,nRefine,ore,bare,maxExt,e,w,gravelMax,rf);
     printf("\n(refined top %d with all 7 families incl. gravel/copper/iron)\n",(int)std::min((size_t)nRefine,top.size()));
     printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present","absH","final");
     for(size_t i=0;i<rf.size()&&i<10;i++){ auto&t=rf[i]; char o[24],ch[16];

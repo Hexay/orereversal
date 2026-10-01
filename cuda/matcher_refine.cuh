@@ -25,12 +25,21 @@ static void loadObs(const char*path,std::vector<ObsCell>&ore,std::vector<ObsCell
 }
 
 // ---- CPU refine: full 7-family score of one hypothesis over a small window (gravel/copper/iron injected) ----
-static inline long key3(int x,int y,int z){ return (((long)(x+1000000))*512 + (y+64))* (long)2000000 + (z+1000000); }
+// exact pack for the whole world (|x|,|z| < 2^25 covers ±30M; y+64 < 2^7). Not `long`: 32-bit on MSVC.
+static inline uint64_t key3(int x,int y,int z){
+    return ((uint64_t)(uint32_t)(x+(1<<25))<<33) | ((uint64_t)(uint32_t)(y+64)<<26) | (uint32_t)(z+(1<<25)); }
 struct Refined { Result r; int pres; int absH; float fin; };
+
+// host mirror of occHitTol: any candidate within Chebyshev distance e
+static bool hitTol(const std::unordered_set<uint64_t>&s,int x,int y,int z,int e){
+    for(int dx=-e;dx<=e;dx++)for(int dy=-e;dy<=e;dy++)for(int dz=-e;dz<=e;dz++)
+        if(s.count(key3(x+dx,y+dy,z+dz))) return true;
+    return false;
+}
 
 static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
         const std::vector<ObsCell>&ore,const std::vector<ObsCell>&bare,
-        int maxExt,float w,int gravelMax,std::vector<Refined>&outv){
+        int maxExt,int e,float w,int gravelMax,std::vector<Refined>&outv){
     int marginCh=maxExt/16+2;
     float topFin = top.empty()?0:top[0].fin;
     // gravel/copper can add at most gravelMax; results further below the pass-1 top can't overtake. Always
@@ -46,7 +55,7 @@ static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
         // window covering the oriented footprint
         int wx0=R.ox-maxExt,wx1=R.ox+maxExt,wz0=R.oz-maxExt,wz1=R.oz+maxExt;
         int cx0=(wx0>>4)-marginCh,cx1=(wx1>>4)+marginCh,cz0=(wz0>>4)-marginCh,cz1=(wz1>>4)+marginCh;
-        std::unordered_set<long> occ[NACTIVE];   // 0-3 GPU, 4 gravel, 5 copper, 6 iron
+        std::unordered_set<uint64_t> occ[NACTIVE];   // 0-3 GPU, 4 gravel, 5 copper, 6 iron
         std::vector<OrePos> gb(200000);          // per-thread scratch (was a shared static; not reentrant)
         // 4 GPU families on host
         for(int cx=cx0;cx<=cx1;cx++)for(int cz=cz0;cz<=cz1;cz++)
@@ -57,21 +66,21 @@ static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
                 int fa=famActive(cfg->family);
                 for(int k=0;k<n;k++) if(gb[k].y>=-64&&gb[k].y<0) occ[fa].insert(key3(gb[k].x,gb[k].y,gb[k].z));
             }
-        // gravel + copper + iron from region_dump.exe (one call, all three families)
-        { char cmd[700]; snprintf(cmd,sizeof(cmd),"\"%s\" %llu 1.18 %d %d %d %d -64 -1 gravel copper iron 2>NUL",
+        // gravel + copper + iron from region_dump (one call, all three families)
+        { char cmd[700]; snprintf(cmd,sizeof(cmd),"\"%s\" %llu 1.18 %d %d %d %d -64 -1 gravel copper iron 2>" DEVNULL,
                 g_rdexe,(unsigned long long)seed,cx0,cx1,cz0,cz1);
-            FILE*p=_popen(cmd,"r"); if(p){ char ln[128];
+            FILE*p=popen(cmd,"r"); if(p){ char ln[128];
                 while(fgets(ln,sizeof(ln),p)){ char f[32]; int x,y,z;
                     if(sscanf(ln,"%31[^,],%d,%d,%d",f,&x,&y,&z)!=4||y<-64||y>=0) continue;
                     int fa = !strcmp(f,"gravel")?4 : !strcmp(f,"copper")?5 : !strcmp(f,"iron")?6 : -1;
                     if(fa>=0) occ[fa].insert(key3(x,y,z)); }
-                _pclose(p); } }
+                pclose(p); } }
         // score this hypothesis with all 7 families
         int pres=0; for(auto&o:ore){ int dx,dz; orient_xz(o.x,o.z,R.r,R.mir,&dx,&dz);
-            if(occ[o.fam].count(key3(R.ox+dx,R.oy+o.y,R.oz+dz))) pres++; }
+            if(hitTol(occ[o.fam],R.ox+dx,R.oy+o.y,R.oz+dz,e)) pres++; }
         int absH=0; for(auto&b:bare){ int dx,dz; orient_xz(b.x,b.z,R.r,R.mir,&dx,&dz);
-            long k=key3(R.ox+dx,R.oy+b.y,R.oz+dz); bool any=false;
-            for(int fa=0;fa<NACTIVE;fa++) if(occ[fa].count(k)){any=true;break;} if(any) absH++; }
+            bool any=false;
+            for(int fa=0;fa<NACTIVE;fa++) if(hitTol(occ[fa],R.ox+dx,R.oy+b.y,R.oz+dz,e)){any=true;break;} if(any) absH++; }
         outv[t]={R,pres,absH,pres-w*absH};
     }
     std::sort(outv.begin(),outv.end(),[](const Refined&a,const Refined&b){return a.fin>b.fin;});

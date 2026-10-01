@@ -33,7 +33,19 @@ ORE_HD static inline int famActive(int F){
     return -1;
 }
 static const char* FAMNAME[F_COUNT]={"tuff","redstone","lapis","gravel","granite","copper","iron"};
-static char g_rdexe[600]="..\\harness\\region_dump.exe";   // resolved from argv[0] in main()
+#ifdef _WIN32
+#define popen _popen
+#define pclose _pclose
+#define DEVNULL "NUL"
+#define PATHSEP "\\"
+#define EXE_SUFFIX ".exe"
+#else
+#define DEVNULL "/dev/null"
+#define PATHSEP "/"
+#define EXE_SUFFIX ""
+#endif
+#define RD_RELPATH ".." PATHSEP "harness" PATHSEP "region_dump" EXE_SUFFIX
+static char g_rdexe[600]=RD_RELPATH;   // resolved from argv[0] in main()
 
 struct ObsCell { int x,y,z,fam; };
 struct Result  { int ox,oy,oz; int r,mir,pres,absH; float fin; };

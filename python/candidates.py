@@ -2,7 +2,7 @@
 import collections, os, subprocess
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-EXE = os.path.join(ROOT, "harness", "region_dump.exe")
+EXE = os.path.join(ROOT, "harness", "region_dump" + (".exe" if os.name == "nt" else ""))
 # Families an observation may name (see docs/observation-format.md). Ordered: on overlapping candidates
 # the later family wins in family_at(), so labels are deterministic.
 USABLE = ("tuff","gravel","granite","copper","iron","redstone","lapis")

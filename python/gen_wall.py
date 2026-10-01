@@ -18,7 +18,7 @@ def main():
     local = C.region_dump(a.seed,"1.18",cx-2,cx+2,cz-2,((a.z0+a.w)>>4)+2)
     fam_at=C.family_at(local)
     fc=collections.Counter()
-    with open(a.out,"w") as f:
+    with open(a.out,"w",newline="\n") as f:
         f.write("family,x,y,z\n")
         for Y in range(a.y0, a.y0+a.h):
             for Z in range(a.z0, a.z0+a.w):

@@ -19,7 +19,7 @@ def main():
     def inside(x,y,z): return x0<=x<=x1 and y0<=y<=y1 and z0<=z<=z1
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     fc=collections.Counter()
-    with open(a.out,"w") as f:
+    with open(a.out,"w",newline="\n") as f:
         f.write("family,x,y,z\n")
         for X in range(x0-1,x1+2):
             for Y in range(y0-1,y1+2):
