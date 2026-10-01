@@ -1,0 +1,16 @@
+obs: 633 ore + 3791 bare | search 4096 chunks | anchor=lapis(1) tile=256 margin=4ch minfrac=0.50 e=1 ae=0 w=1.0
+gen-gating: 7/7 configs [tuff,redstone,lapis,granite] (all GPU families: bare-absence)
+scanned 1 tiles | 62495 anchor candidates | 630 survivors (minfrac pre-filter) | top-K=215
+
+(refined top 64 with all 7 families incl. gravel/copper/iron)
+rank           world_origin        chunk  orient    present     absH     final
+   1          (-6, -52, -6)     (-1, -1)    r0m1 633/633        0     633.0
+   2       (-109, -48, 146)      (-7, 9)    r1m-1 280/633      170     110.0
+   3        (482, -35, 336)     (30, 21)    r3m1 267/633      160     107.0
+   4         (133, -15, 41)       (8, 2)    r3m1 271/633      207      64.0
+   5       (-455, -43, 236)    (-29, 14)    r2m1 317/633      262      55.0
+   6         (453, -33, 10)      (28, 0)    r2m-1 268/633      220      48.0
+   7         (115, -26, 35)       (7, 2)    r1m1 283/633      266      17.0
+   8        (51, -53, -341)     (3, -22)    r1m-1 278/633      272       6.0
+
+top_final=633.0 margin=523.0 => CONFIDENT (unique)

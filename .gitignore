@@ -31,6 +31,7 @@ mushroom/
 other/
 # regenerable sweep/scratch observations
 examples/_*.csv
+tests/tmp/
 
 # ---- machine-specific toolchain bootstrap (hardcoded local paths) ----
 buildtools.ps1

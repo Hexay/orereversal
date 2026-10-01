@@ -1,0 +1,5 @@
+    296 < copper
+  16187 < gravel
+    241 > copper
+  15829 > gravel
+   1387 > iron
