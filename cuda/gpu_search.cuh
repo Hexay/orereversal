@@ -52,7 +52,7 @@ static float elapsedMs(cudaEvent_t from, cudaEvent_t to) {
 class GpuSearch {
   public:
     GpuSearch(const Options& opt, const Observation& obs, const std::vector<int>& configIds)
-        : opt_(opt), obs_(obs), configCount_((int)configIds.size()), margin_(marginChunks(obs)) {
+        : opt_(opt), obs_(obs), configCount_((int)configIds.size()), margin_(tileMarginChunks(obs)) {
         int maxSide = opt.tileSize + 2 * margin_;
         int64_t maxBlocksSide = (int64_t)maxSide * 16;
         maxWordsPerFamily_ = (maxBlocksSide * BAND_HEIGHT * maxBlocksSide + 31) / 32;

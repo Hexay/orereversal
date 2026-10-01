@@ -13,7 +13,7 @@ static void printObservationSummary(const Options& opt, const Observation& obs) 
     printf("obs: %zu ore + %zu bare | search %lld chunks | anchor=%s(%d) tile=%d margin=%dch minfrac=%.2f "
            "e=%d ae=%d w=%.1f\n",
            obs.ore.size(), obs.bare.size(), chunks, FAMILY_NAMES[obs.anchorFamily],
-           obs.familyCounts[obs.anchorFamily], opt.tileSize, marginChunks(obs), opt.minPresenceFraction,
+           obs.familyCounts[obs.anchorFamily], opt.tileSize, tileMarginChunks(obs), opt.minPresenceFraction,
            opt.tolerance, opt.absenceTolerance, opt.absenceWeight);
 }
 

@@ -16,7 +16,8 @@ struct Observation {
     int gpuOreCount = 0;
     int anchorFamily = -1; // rarest GPU family observed; its candidates seed the hypotheses
     ObsCell anchorCell;
-    int maxExtent = 1; // largest |x| or |z| of any cell
+    int maxExtent = 1;   // largest |x| or |z| of any cell
+    int anchorReach = 0; // largest x/z (Chebyshev) distance from anchorCell to any cell, in any orientation
 };
 
 // Returns false (after printing why) if the file can't be read or has no GPU-family ore.
@@ -66,16 +67,24 @@ static bool loadObservation(const char* path, Observation& obs) {
             obs.anchorCell = c;
             break;
         }
-    for (const ObsCell& c : obs.ore)
-        obs.maxExtent = std::max(obs.maxExtent, std::max(abs(c.x), abs(c.z)));
-    for (const ObsCell& c : obs.bare)
-        obs.maxExtent = std::max(obs.maxExtent, std::max(abs(c.x), abs(c.z)));
+    for (const std::vector<ObsCell>* cells : {&obs.ore, &obs.bare})
+        for (const ObsCell& c : *cells) {
+            obs.maxExtent = std::max(obs.maxExtent, std::max(abs(c.x), abs(c.z)));
+            obs.anchorReach = std::max(
+                obs.anchorReach, std::max(abs(c.x - obs.anchorCell.x), abs(c.z - obs.anchorCell.z)));
+        }
     return true;
 }
 
-// Chunks of margin around a tile so every vein reaching a hypothesis inside it is generated.
+// Chunks of margin a refine window needs around the origin.
 static inline int marginChunks(const Observation& obs) {
     return obs.maxExtent / 16 + 2;
+}
+
+// Chunks of margin a GPU tile needs: hypotheses are anchored inside the tile and probe up to anchorReach
+// blocks away, plus one chunk because veins spill up to 13 blocks out of their own chunk.
+static inline int tileMarginChunks(const Observation& obs) {
+    return (obs.anchorReach + 15) / 16 + 1;
 }
 
 // The GPU configs to generate. Presence only needs the observed families, but absence checks every GPU

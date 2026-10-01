@@ -5,6 +5,7 @@
 #   bash tests/regress.sh --python   also run the (slow, ~1 min) Python solver case
 #   bash tests/regress.sh --build    rebuild harness + cuda first
 set -u
+shopt -s lastpipe # `cmd | check` must run check in this shell, or its FAIL=1 is lost
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 EXP=tests/expected
