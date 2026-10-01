@@ -84,14 +84,14 @@ int main(int argc,char**argv){
     // full set whenever any bare cell is present. Families seed RNG independently (oregen.h), so skipping
     // a family is bit-exact for the rest. Big win when the obs is rare-only (drops the dense tuff fill).
     std::vector<int> selCfg; bool needAll=gateOff||!bare.empty();
-    for(int c=0;c<N_ACTIVE_CFG;c++){ int fa=famActive(ORE_CFGS_118[ACTIVE_CFG_H[c]].family);
+    for(int c=0;c<N_ACTIVE_CFG;c++){ int fa=famActive(ORE_CFGS_118_H[ACTIVE_CFG_H[c]].family);
         if(needAll||cnt[fa]>0) selCfg.push_back(ACTIVE_CFG_H[c]); }
     int nSel=(int)selCfg.size(); int* dSelCfg; CK(cudaMalloc(&dSelCfg,nSel*sizeof(int)));
     CK(cudaMemcpy(dSelCfg,selCfg.data(),nSel*sizeof(int),cudaMemcpyHostToDevice));
     { printf("gen-gating: %d/%d configs [", nSel, N_ACTIVE_CFG);
       bool seen[NGPU]={false}; const char* sep="";
-      for(int s:selCfg){ int fa=famActive(ORE_CFGS_118[s].family);
-          if(!seen[fa]){ printf("%s%s", sep, FAMNAME[ORE_CFGS_118[s].family]); sep=","; seen[fa]=true; } }
+      for(int s:selCfg){ int fa=famActive(ORE_CFGS_118_H[s].family);
+          if(!seen[fa]){ printf("%s%s", sep, FAMNAME[ORE_CFGS_118_H[s].family]); sep=","; seen[fa]=true; } }
       printf("]%s\n", needAll?" (all GPU families: bare-absence)":" (rare-gated)"); }
 
     // buffers sized for the largest tile (+margin)
@@ -198,7 +198,7 @@ int main(int argc,char**argv){
     if(!refine){
         printf("\n(GPU families only: tuff/redstone/lapis/granite)\n");
         printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present","absH","final");
-        for(size_t i=0;i<top.size()&&i<10;i++){ auto&t=top[i]; char o[24],ch[16];
+        for(size_t i=0;i<top.size()&&i<10;i++){ auto&t=top[i]; char o[40],ch[32];
             snprintf(o,sizeof(o),"(%d, %d, %d)",t.ox,t.oy,t.oz); snprintf(ch,sizeof(ch),"(%d, %d)",t.ox>>4,t.oz>>4);
             printf("%4zu %22s %12s    r%dm%d %d/%d %8d %9.1f\n",i+1,o,ch,t.r,t.mir,t.pres,nOreGpu,t.absH,t.fin); }
         if(top.size()>=2){ float m=top[0].fin-top[1].fin;
@@ -209,7 +209,7 @@ int main(int argc,char**argv){
     std::vector<Refined> rf; refineTop(seed,top,nRefine,ore,bare,maxExt,e,ae,w,gravelMax,rf);
     printf("\n(refined top %d with all 7 families incl. gravel/copper/iron)\n",(int)std::min((size_t)nRefine,top.size()));
     printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present","absH","final");
-    for(size_t i=0;i<rf.size()&&i<10;i++){ auto&t=rf[i]; char o[24],ch[16];
+    for(size_t i=0;i<rf.size()&&i<10;i++){ auto&t=rf[i]; char o[40],ch[32];
         snprintf(o,sizeof(o),"(%d, %d, %d)",t.r.ox,t.r.oy,t.r.oz); snprintf(ch,sizeof(ch),"(%d, %d)",t.r.ox>>4,t.r.oz>>4);
         printf("%4zu %22s %12s    r%dm%d %d/%zu %8d %9.1f\n",i+1,o,ch,t.r.r,t.r.mir,t.pres,ore.size(),t.absH,t.fin); }
     if(rf.size()>=2){ float m=rf[0].fin-rf[1].fin;

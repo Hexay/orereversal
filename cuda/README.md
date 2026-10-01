@@ -14,7 +14,7 @@ the [top-level README](../README.md#quick-start).
 | `matcher_refine.cuh` | Observation loader and the pass-2 CPU refine. |
 | `matcher_common.h` | Family index maps, occupancy probes, shared structs, and a glossary of the short names used in the kernels. |
 | `oretest.c` | CPU driver that prints in `harness/region_dump.exe` format, for the bit-exact diff test. |
-| `rebuild.bat` | Builds `oretest.exe` and `matcher.exe` from a non-developer shell. |
+| `build.sh` / `rebuild.bat` | Build `oretest` and `matcher` on Linux / Windows. The host driver is compiled without FMA contraction (`-ffp-contract=off` / `/fp:strict`) so it stays bit-exact. |
 
 ## Pipeline
 

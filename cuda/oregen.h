@@ -46,23 +46,26 @@ typedef struct {
 // 1.18 (MC_1_18 <= mc < MC_1_20) Tier-1 configs. Values transcribed from finders.c getOreConfig.
 // One OreCfg per cubiomes ore *type* (a family can have several types, e.g. redstone + lower_redstone).
 #define ORE_NCFG 9
+#define ORE_CFGS_118_INIT {                                                                            \
+    /* index, step, size, repeat, hp,          h1,  h2, rare, discard, family */                     \
+    {  8, 6, 64,  2, HP_UNIFORM,  -64,   0, 0, 0.0f, F_TUFF     }, /* tuff */                        \
+    { 16, 6,  8,  4, HP_UNIFORM,  -64,  15, 0, 0.0f, F_REDSTONE }, /* redstone */                    \
+    { 17, 6,  8,  8, HP_TRIANGLE, -96, -32, 0, 0.0f, F_REDSTONE }, /* lower_redstone */              \
+    { 21, 6,  7,  2, HP_TRIANGLE, -32,  32, 0, 0.0f, F_LAPIS    }, /* lapis */                       \
+    { 22, 6,  7,  4, HP_UNIFORM,  -64,  64, 0, 1.0f, F_LAPIS    }, /* buried_lapis (discard=1) */    \
+    {  1, 6, 33, 14, HP_UNIFORM,  -64, 319, 0, 0.0f, F_GRAVEL   }, /* gravel */                      \
+    {  3, 6, 64,  2, HP_UNIFORM,    0,  60, 0, 0.0f, F_GRANITE  }, /* lower_granite */               \
+    {  2, 6, 64,  6, HP_UNIFORM,   64, 128, 1, 0.0f, F_GRANITE  }, /* upper_granite (rare) */        \
+    { 24, 6, 10, 16, HP_TRIANGLE, -16, 112, 0, 0.0f, F_COPPER   }, /* copper */                      \
+}
+// Under nvcc the device table can't be read from host code, so host callers use ORE_CFGS_118_H.
 #ifdef __CUDACC__
-#define ORE_TABLE static __device__ const
+static __device__ const OreCfg ORE_CFGS_118[ORE_NCFG] = ORE_CFGS_118_INIT;
+static const OreCfg ORE_CFGS_118_H[ORE_NCFG] = ORE_CFGS_118_INIT;
 #else
-#define ORE_TABLE static const
+static const OreCfg ORE_CFGS_118[ORE_NCFG] = ORE_CFGS_118_INIT;
+#define ORE_CFGS_118_H ORE_CFGS_118
 #endif
-ORE_TABLE OreCfg ORE_CFGS_118[ORE_NCFG] = {
-    // index, step, size, repeat, hp,          h1,  h2, rare, discard, family
-    {  8, 6, 64,  2, HP_UNIFORM,  -64,   0, 0, 0.0f, F_TUFF     }, // tuff
-    { 16, 6,  8,  4, HP_UNIFORM,  -64,  15, 0, 0.0f, F_REDSTONE }, // redstone
-    { 17, 6,  8,  8, HP_TRIANGLE, -96, -32, 0, 0.0f, F_REDSTONE }, // lower_redstone
-    { 21, 6,  7,  2, HP_TRIANGLE, -32,  32, 0, 0.0f, F_LAPIS    }, // lapis
-    { 22, 6,  7,  4, HP_UNIFORM,  -64,  64, 0, 1.0f, F_LAPIS    }, // buried_lapis (discard=1)
-    {  1, 6, 33, 14, HP_UNIFORM,  -64, 319, 0, 0.0f, F_GRAVEL   }, // gravel
-    {  3, 6, 64,  2, HP_UNIFORM,    0,  60, 0, 0.0f, F_GRANITE  }, // lower_granite
-    {  2, 6, 64,  6, HP_UNIFORM,   64, 128, 1, 0.0f, F_GRANITE  }, // upper_granite (rare)
-    { 24, 6, 10, 16, HP_TRIANGLE, -16, 112, 0, 0.0f, F_COPPER   }, // copper
-};
 
 typedef struct { int32_t x, y, z; } OrePos;
 #ifndef __CUDACC__

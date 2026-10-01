@@ -6,5 +6,5 @@ echo === building oretest (host) ===
 cl /nologo /O2 /fp:strict oretest.c /Fe:oretest.exe >nul
 echo oretest_exit=%ERRORLEVEL%
 echo === building matcher (device) ===
-nvcc -O2 -arch=sm_89 -Xcompiler /openmp -Xptxas -v matcher.cu -o matcher.exe
+nvcc -O2 -std=c++17 -arch=sm_89 -Xcompiler /openmp -Xptxas -v matcher.cu -o matcher.exe
 echo matcher_exit=%ERRORLEVEL%

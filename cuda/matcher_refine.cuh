@@ -60,7 +60,7 @@ static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
         // 4 GPU families on host
         for(int cx=cx0;cx<=cx1;cx++)for(int cz=cz0;cz<=cz1;cz++)
             for(int c=0;c<N_ACTIVE_CFG;c++){
-                const OreCfg*cfg=&ORE_CFGS_118[ACTIVE_CFG_H[c]];
+                const OreCfg*cfg=&ORE_CFGS_118_H[ACTIVE_CFG_H[c]];
                 int n=0; OreEmit em; memset(&em,0,sizeof(em)); em.out=gb.data(); em.n=&n; em.cap=200000;
                 generateOreType(seed,cfg,cx,cz,&em);
                 int fa=famActive(cfg->family);

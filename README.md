@@ -9,7 +9,7 @@ GPU-accelerated, known-seed world localization from exposed ore patterns, for Mi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Minecraft 1.18+](https://img.shields.io/badge/Minecraft-1.18%2B-62B47A)
 ![CUDA 12](https://img.shields.io/badge/CUDA-12.x-76B900?logo=nvidia&logoColor=white)
-![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6)
+![Platform: Windows | Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6)
 
 </div>
 
@@ -107,10 +107,10 @@ Real worldgen couples ore to terrain in three ways. Only some families survive a
 
 | | Tested with |
 |---|---|
-| GPU | NVIDIA, compute capability 8.9 (RTX 40-series). Set `-arch` for other cards. |
+| GPU | NVIDIA, compute capability 8.9 (RTX 40-series). Other architectures need a rebuild for that arch. |
 | CUDA Toolkit | 12.9 |
-| Host compiler | MSVC (VS 2022 Build Tools, C++ workload) with OpenMP |
-| cubiomes build | MinGW `gcc` + CMake (cubiomes' CMake rejects MSVC) |
+| Host compiler | Windows: MSVC (VS 2022 Build Tools, C++ workload). Linux: gcc 13. OpenMP on both. |
+| cubiomes build | `gcc` + CMake (MinGW on Windows, because cubiomes' CMake rejects MSVC) |
 | CPU reference solver | Python 3, standard library only |
 
 ## Quick start
@@ -125,26 +125,28 @@ git clone https://github.com/xpple/cubiomes.git
 git -C cubiomes checkout 62007b8c6260290a3951f8ea9ce4a41e60dd1b54
 ```
 
-**2. Build the cubiomes harness.** This step produces `harness/region_dump.exe`, which the refine pass
-calls, and `harness/ore_dump.exe`:
+**2. Build the cubiomes harness.** This step produces `harness/region_dump`, which the refine pass
+calls, and `harness/ore_dump`. On Windows, run it from Git Bash or MSYS2 with MinGW on `PATH`.
 
 ```sh
 bash harness/build.sh
 ```
 
-**3. Build the GPU matcher.** Run this from a VS x64 developer shell with CUDA's `bin` on `PATH`:
+**3. Build the GPU matcher.**
+
+On Linux, with `nvcc` on `PATH`:
 
 ```sh
-cd cuda
-nvcc -O2 -arch=sm_89 -Xcompiler /openmp matcher.cu -o matcher.exe
+bash cuda/build.sh                # targets the local GPU; override with ARCH=sm_86 etc.
 ```
 
-Alternatively, run `cuda\rebuild.bat` from an ordinary shell. It calls `vcvars64.bat` and adds CUDA 12.9 to `PATH`.
+On Windows, run `cuda\rebuild.bat`. It calls `vcvars64.bat` from VS 2022 Build Tools, puts CUDA 12.9 on
+`PATH`, and builds for `sm_89`. Edit those three lines in the script if your setup differs.
 
 **4. Run the example** (seed `123`, a 64 × 64-chunk region around the origin):
 
 ```sh
-cuda/matcher.exe 123 -32 31 -32 31 examples/obs_big_room.csv
+cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv      # cuda\matcher.exe on Windows
 ```
 
 ## Usage
@@ -256,8 +258,9 @@ precision budget, and every negative result.
 - **You need a decent-sized observation.** A large carved room is world-unique. A few scattered
   veins are not. As a rule of thumb, aim for hundreds of cells including about 20 or more of the
   sparse families.
-- **Windows-only build for now.** The paths, build scripts and the `region_dump.exe` subprocess
-  assume Windows.
+- **The Linux GPU path hasn't run on a GPU yet.** On Ubuntu 24.04 everything builds without warnings,
+  and the harness, golden diff and Python solver match Windows exactly. But the matcher itself has only
+  been executed on Windows.
 - **Gravel moves.** It is placed suspended at generation and falls once a block update reaches it,
   so in an explored room its contribution is only a bonus.
 
