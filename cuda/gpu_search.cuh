@@ -89,7 +89,8 @@ class GpuSearch {
         if (opt_.legacyGenerator)
             printf("generator: legacy (1 thread/chunk, bit-exact reference)\n");
         else
-            printf("generator: two-kernel (kSetup+kFill), nodeCap=%dM veinCap=%dM, %d kFill blocks x %d\n",
+            printf("generator: two-kernel (kSetupVeins+kFillVeins), node capacity=%dM vein capacity=%dM, "
+                   "%d fill blocks x %d\n",
                    scratch_.nodeCapacity / 1000000, scratch_.veinCapacity / 1000000, fillBlocks_,
                    FILL_BLOCK_SIZE);
     }

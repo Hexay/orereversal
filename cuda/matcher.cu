@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
         return 1;
     printf("scanned %d tiles | %lld anchor candidates | %lld survivors (minfrac pre-filter) | top-K=%zu\n",
            stats.tiles, stats.anchors, stats.survivors, top.size());
-    printf("[timing] kGenerate=%.0f ms (kSetup=%.0f kFill=%.0f) | kScore=%.0f ms | gen/score=%.2f\n",
+    printf("[timing] generate=%.0f ms (setup=%.0f fill=%.0f) | score=%.0f ms | generate/score=%.2f\n",
            stats.msGenerate, stats.msSetup, stats.msGenerate - stats.msSetup, stats.msScore,
            stats.msScore > 0 ? stats.msGenerate / stats.msScore : 0);
 

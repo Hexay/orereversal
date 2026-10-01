@@ -4,6 +4,10 @@ How the GPU matcher in [`cuda/`](../cuda) got from ~48 min to ~4 min for a 300k 
 including the measured dead ends. Kept as history; the current design is summarized in
 [`cuda/README.md`](../cuda/README.md). Per-phase context lives in [`research-log.md`](research-log.md).
 
+The log uses the names the code had at the time. Since the 2026-10 readability refactor: `kSetup` →
+`kSetupVeins`, `kFill` → `kFillVeins`, `kGenerate` → `kGenerateLegacy`, `kAnchorKey` → `kMortonKeys`,
+`kScore` → `kScoreHypotheses`, `occ` → the occupancy grid (`OccupancyGrid`), `bitSet` → `seen`.
+
 ## World-scale (P3.3)
 Tiled so memory is bounded for ANY region size (validated to 30M chunks; ~7 min projected for 300k x 300k
 with mixed-precision gen + Morton-sorted kScore, vs ~9 min mixed-only, ~18 min FP64 two-kernel, ~48 min legacy).

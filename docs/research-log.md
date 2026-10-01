@@ -1,5 +1,8 @@
 # Ore-based location finding in Minecraft — design notes
 
+Chronological lab notebook. Code names are as they were at the time; see the name map at the top of
+[gpu-optimization.md](gpu-optimization.md) for today's names.
+
 ## Goal
 Given a **known world seed** + a set of **observed naturally-spawned ore positions** (e.g. visible in
 someone's base/mine), find **where in the world** (chunk X/Z) that ore pattern occurs. CUDA-accelerated

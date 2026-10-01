@@ -12,5 +12,5 @@ for i in $(seq "$RUNS"); do
   start=$(date +%s.%N)
   out=$(cuda/matcher$EXE 123 $((-R)) $((R-1)) $((-R)) $((R-1)) examples/obs_big_room.csv --no-refine 2>&1)
   end=$(date +%s.%N)
-  printf 'run %d  wall %.2fs  %s\n' "$i" "$(awk "BEGIN{print $end - $start}")" "$(echo "$out" | grep -o 'kGenerate=.*')"
+  printf 'run %d  wall %.2fs  %s\n' "$i" "$(awk "BEGIN{print $end - $start}")" "$(echo "$out" | grep -o 'generate=.*')"
 done

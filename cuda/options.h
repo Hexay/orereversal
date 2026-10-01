@@ -79,7 +79,8 @@ static bool parseOptions(int argc, char** argv, Options& o) {
         }
     }
     if (o.tileSize > MAX_TILE_SIZE) {
-        fprintf(stderr, "warning: tile>%d risks a Windows TDR kill (kScore launch >2s); clamping to 256\n",
+        fprintf(stderr,
+                "warning: tile>%d risks a Windows TDR reset (a kernel running >2s); clamping to 256\n",
                 MAX_TILE_SIZE);
         o.tileSize = 256;
     }

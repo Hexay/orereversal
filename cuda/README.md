@@ -6,29 +6,43 @@ the [top-level README](../README.md#quick-start).
 
 ## Files
 
+The matcher is a single translation unit: `matcher.cu` includes everything else.
+
 | File | Contents |
 |---|---|
-| `oregen.h` | Portable host + `__device__` port of cubiomes ore generation (`rng.h`/`finders.c`). It avoids VLAs and GCC builtins so it compiles under both MSVC and nvcc. |
-| `matcher.cu` | Entry point. Tiles the search region, runs pass 1 on the GPU and pass 2 on the CPU, and prints the ranking. |
-| `matcher_kernels.cuh` | Device kernels: `kSetup` + `kFill` (default generator), `kGenerate` (legacy generator), `kAnchorKey`, `kScore`. |
-| `matcher_refine.cuh` | Observation loader and the pass-2 CPU refine. |
-| `matcher_common.h` | Family index maps, occupancy probes, shared structs, and a glossary of the short names used in the kernels. |
-| `oretest.c` | CPU driver that prints in `harness/region_dump.exe` format, for the bit-exact diff test. |
+| **Ore generation** (plain C, host and device) | |
+| `ore_config.h` | Ore families and the 1.18 config table. The four GPU families come first, so a family id is also its occupancy-grid slot. |
+| `ore_rng.h` | Xoroshiro128++ with Java semantics. Function names follow cubiomes' `rng.h`. |
+| `occupancy.h` | The occupancy grid (one bit per deepslate-band block per GPU family) and the anchor sink. |
+| `oregen.h` | Vein generation, a line-by-line port of cubiomes' `generateOres` / `generateVeinPart`. |
+| `oretest.c` | Prints `oregen.h`'s output in `harness/region_dump` format, for the bit-exact diff. |
+| **Matcher** | |
+| `matcher.cu` | `main()`: parse options, load the observation, run pass 1, refine, report. |
+| `options.h` | Command-line options and usage text. |
+| `observation.h` | Loading the observation CSV and choosing the anchor family and GPU configs. |
+| `generate.cuh` | Generation kernels: `kSetupVeins` + `kFillVeins` (default) and `kGenerateLegacy`. |
+| `score.cuh` | `kMortonKeys` (anchor sort keys) and `kScoreHypotheses`. |
+| `gpu_search.cuh` | `GpuSearch`: device buffers and the per-tile loop of pass 1. |
+| `top_k.h` | Merging tile survivors into the global top-K, one per neighbourhood. |
+| `refine.h` | Pass 2 on the CPU. |
+| `region_dump.h` | Locating and running `harness/region_dump`. |
+| `report.h` | Console output. |
+| `common.h` | `ObsCell`, `Result`, the 8 orientations, `CUDA_CHECK`. |
 | `build.sh` / `rebuild.bat` | Build `oretest` and `matcher` on Linux / Windows. The host driver is compiled without FMA contraction (`-ffp-contract=off` / `/fp:strict`) so it stays bit-exact. |
 
 ## Pipeline
 
-1. **Pass 1 (GPU, per tile).** `kSetup` runs one thread per (chunk, ore config) and writes vein node
-   lists. `kFill` then runs one warp per vein and fills that vein's spheres into a per-family
-   occupancy bitmask for tuff, redstone, lapis and granite. Every cell of the rarest observed family
-   becomes an anchor. `kScore` tests each anchor in 8 orientations for presence and soft absence.
-   Hypotheses that pass the `--minfrac` filter are merged into a global top-K.
+1. **Pass 1 (GPU, per tile).** `kSetupVeins` runs one thread per (chunk, ore config) and writes each
+   vein's nodes to scratch. `kFillVeins` then runs one warp per vein and ORs the vein's blocks into
+   the occupancy grid for tuff, redstone, lapis and granite. Every candidate of the rarest observed
+   family becomes an anchor. `kScoreHypotheses` tests each anchor in 8 orientations for presence and
+   soft absence. Hypotheses that pass the `--minfrac` filter are merged into a global top-K.
 2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 7 families. Gravel, copper
-   and iron come from `region_dump.exe`. Pass 2 stops at the point where gravel, copper and iron
+   and iron come from `region_dump`. Pass 2 stops at the point where gravel, copper and iron
    together can no longer change the ranking. It runs in parallel with OpenMP.
 
-`--legacy-gen` swaps in the original one-thread-per-chunk `kGenerate`. It is the bit-exact reference
-that every optimization is validated against.
+`--legacy-gen` swaps in the original one-thread-per-chunk `kGenerateLegacy`. It is the bit-exact
+reference that every optimization is validated against.
 
 ## Which ore families, and why
 

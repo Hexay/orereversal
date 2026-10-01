@@ -2,7 +2,7 @@
 
 # orereversal
 
-**Pinpoint a Minecraft location from the ore in its walls.**
+**A Minecraft coordinate exploit: recover where a screenshot or video was taken from the ore visible in it.**
 
 GPU-accelerated, known-seed world localization from exposed ore patterns, for Minecraft Java 1.18+.
 
@@ -15,10 +15,16 @@ GPU-accelerated, known-seed world localization from exposed ore patterns, for Mi
 
 ---
 
-Given a world seed and the ore blocks visible on the walls of a dug-out room, orereversal finds the
-room's absolute position in the world. You don't need its coordinates or which way it faces. It
-reports a ranked list of candidates and a confidence margin that tells you whether the best match is
-unique in the searched region.
+Ore placement in Minecraft is fully determined by the world seed, so the pattern of ore exposed in a
+wall is a fingerprint of where that wall is. Given the seed and the ore blocks visible in a dug-out
+room, for example in a screenshot or a video, orereversal finds the room's absolute coordinates. You
+don't need to know where the room is or which way the camera faced. It reports a ranked list of
+candidates and a confidence margin that tells you whether the best match is unique in the searched
+region.
+
+orereversal doesn't read images itself. The visible blocks are first written down as an
+[observation CSV](docs/observation-format.md), by hand or with an extraction tool, and `--error`
+tolerates a block or two of misreading.
 
 ```text
 $ cuda/matcher.exe 123 -32 31 -32 31 examples/obs_big_room.csv
@@ -47,6 +53,7 @@ top_final=633.0 margin=452.0 => CONFIDENT (unique)
 - [Validation](#validation)
 - [Limitations](#limitations)
 - [Repository layout](#repository-layout)
+- [Development](#development)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
@@ -62,8 +69,8 @@ top_final=633.0 margin=452.0 => CONFIDENT (unique)
   there isn't any. This removes false positives that only match on presence.
 - **World-scale.** The search is tiled, so memory stays bounded for any region size. 29M chunks are
   scanned in about 21 s.
-- **Tolerant of sloppy input.** `--error N` matches within ±N blocks, for coordinates that weren't
-  extracted exactly.
+- **Works from footage.** `--error N` matches within ±N blocks, for positions read off a screenshot or
+  video frame rather than extracted exactly.
 
 ## How it works
 
@@ -160,7 +167,7 @@ band (Y −64 to −1).
 
 | Option | Default | Description |
 |---|---|---|
-| `--error E` | `0` | Positional tolerance for ore cells, in blocks. Use 1–2 for coordinates that weren't extracted exactly. |
+| `--error E` | `0` | Positional tolerance for ore cells, in blocks. Use 1–2 for positions read from images or video. |
 | `--abs-error A` | `0` | Positional tolerance for `bare` cells. Leave it at 0 unless the bare cells are misread too, because widening them next to dense tuff floods the absence score. |
 | `--absw W` | `1.0` | Weight of each absence hit (ore predicted on a `bare` cell). |
 | `--minfrac F` | `0.5` | Presence pre-filter: the fraction of GPU-family ore a hypothesis must hit to survive pass 1. |
@@ -268,12 +275,27 @@ precision budget, and every negative result.
 
 | Path | Contents |
 |---|---|
-| [`cuda/`](cuda) | **The GPU matcher.** `oregen.h` is a portable host/device port of cubiomes' 1.18 ore generation. `matcher.cu` is the tiled two-pass localizer. |
+| [`cuda/`](cuda) | **The GPU matcher.** A portable host/device port of cubiomes' 1.18 ore generation (`oregen.h` and friends) and the tiled two-pass localizer built on it. [`cuda/README.md`](cuda/README.md) maps every file. |
 | [`harness/`](harness) | C tools that dump ground-truth ore candidates from cubiomes. The refine pass calls `region_dump`. |
-| [`python/`](python) | Python CPU reference: `solve.py` (the solver), `make_observation.py` and `gen_wall.py` (synthetic observations), and `candidates.py` (shared cubiomes wrapper). |
-| [`python/research/`](python/research) | The earlier research matchers that the research log cites. Kept for reproducibility. |
+| [`python/`](python) | Python CPU reference: `solve.py` (the solver), `make_observation.py` and `gen_wall.py` (synthetic observations), `observation.py` (CSV reading and writing) and `candidates.py` (the `region_dump` wrapper). |
+| [`python/research/`](python/research) | The earlier research matchers that the research log cites. A frozen snapshot, kept for reproducibility. |
+| [`tests/`](tests) | `regress.sh` (byte-for-byte regression against `tests/expected/`) and `bench.sh` (GPU timing). |
 | [`examples/`](examples) | Observation CSVs: synthetic rooms and walls, and `real_pol*` (extracted from a real world). |
 | [`docs/`](docs) | Observation format, research log, GPU optimization log, and the CUDA playbook. |
+
+## Development
+
+The matcher must stay bit-exact, so every change is checked byte for byte against recorded outputs:
+
+```sh
+bash tests/regress.sh --build      # rebuild everything, then compare all cases
+bash tests/regress.sh --python     # also run the slower Python solver case
+bash tests/bench.sh                # GPU pass timing on a 2048 x 2048-chunk region
+```
+
+When a change is *meant* to alter output, regenerate the expected files with `--update` and explain
+why in the commit message. Format C/CUDA with `clang-format -i` (config in `.clang-format`) and
+Python with `ruff format`. `python/research/` is excluded from formatting on purpose.
 
 ## Acknowledgements
 
