@@ -158,7 +158,8 @@ band (Y −64 to −1).
 
 | Option | Default | Description |
 |---|---|---|
-| `--error E` | `0` | Positional tolerance in blocks. Use 1–2 for coordinates that weren't extracted exactly. |
+| `--error E` | `0` | Positional tolerance for ore cells, in blocks. Use 1–2 for coordinates that weren't extracted exactly. |
+| `--abs-error A` | `0` | Positional tolerance for `bare` cells. Leave it at 0 unless the bare cells are misread too, because widening them next to dense tuff floods the absence score. |
 | `--absw W` | `1.0` | Weight of each absence hit (ore predicted on a `bare` cell). |
 | `--minfrac F` | `0.5` | Presence pre-filter: the fraction of GPU-family ore a hypothesis must hit to survive pass 1. |
 | `--tile T` | `256` | Tile size in chunks. Values above 320 risk a Windows TDR reset, so they're clamped. |

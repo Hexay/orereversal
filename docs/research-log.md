@@ -685,6 +685,21 @@ floor. Scaffolding (kFillCapsule, kVerify, vein index, --capsule, anchorOnly, pr
 byte-identical vs --legacy-gen. Net durable win from this whole arc = kSetup local-buffer removal (~2.5 days).
 The ONLY remaining levers are non-algorithmic: parallelism (multi-GPU/cloud) or a location prior.
 
+## P7 — tolerance vs soft absence (2026-10-01): absence decoupled from --error, default EXACT
+Found while fixing refine (it ignored --error and scored exact positions only). Soft absence (P5b) was only
+ever validated at e=0. With e>0 BOTH solvers dilated `bare` probes by the same tolerance as presence, and
+next to dense tuff almost every dilated bare cell "predicts ore" -> the truth drowns in absence hits.
+Test: obs_big_room with ore cells jittered +-N (make_observation --noise N; bare cells NOT jittered), chunks
+-32..31:
+- noise1 --error 1, dilated absence: GPU rank1 absH 708 final -107 shortlist; solve.py absH 1488 final -855.
+- noise1 --error 1, EXACT absence: GPU 633/633 absH 0 margin 523 CONFIDENT (> the clean e=0 margin 452).
+- noise2 --error 2, EXACT absence: rank1 near truth (origin off (-1,-1,-2): noisy anchor), margin 153
+  (83 over 256^2 chunks) -> shortlist, still rank 1.
+DECISION: absence tolerance is its own knob, `--abs-error A` (GPU: +-A Chebyshev; solve.py: dilate 2A, its
+presence convention), default 0. Caveat: the synthetic test favors exact absence because bare cells are
+exact; if bare cells are misread too, pass --abs-error and expect a shortlist.
+OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy anchor), the GPU +-e.
+
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU
 matcher validated end-to-end on real data (P3). Remaining:

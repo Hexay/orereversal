@@ -57,3 +57,6 @@ gravel,6,-52,1
 - Exact coords (mod/world-copy extraction): use tolerance e=0 -> strongest margin.
 - If positions are uncertain by a block or two (e.g. read from an image), pass `--error N` to the solver;
   it matches within +-N. Tolerance up to +-2 still localizes for a large observation (research-log.md P2d).
+- `--error` applies to ore cells only; `bare` cells stay exact unless you also pass `--abs-error N`.
+  Widening bare cells floods the absence score next to dense tuff, so use it only when bare positions are
+  uncertain too (research-log.md P7).

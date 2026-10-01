@@ -190,7 +190,7 @@ __global__ void kAnchorKey(const int3*a,int n,int X0,int Z0,uint32_t*keys){
 
 __global__ void kScore(const int3*anchorList,int nAnchor,const ObsCell*ore,int nOre,
         const ObsCell*bare,int nBare,int oax,int oay,int oaz,const uint32_t*occ,long wpf,
-        int X0,int Z0,int DX,int DZ,int e,float w,int minPres,Result*out,int*outCount,int outCap){
+        int X0,int Z0,int DX,int DZ,int e,int ae,float w,int minPres,Result*out,int*outCount,int outCap){
     long tid=(long)blockIdx.x*blockDim.x+threadIdx.x; if(tid>=(long)nAnchor*8) return;
     int ai=(int)(tid/8),orient=(int)(tid%8),r=orient&3,mir=(orient<4)?1:-1;
     int3 a=anchorList[ai];
@@ -205,7 +205,7 @@ __global__ void kScore(const int3*anchorList,int nAnchor,const ObsCell*ore,int n
     for(int i=0;i<nBare;i++){
         int dx,dz; orient_xz(bare[i].x,bare[i].z,r,mir,&dx,&dz);
         int wx=ox+dx,wy=oy+bare[i].y,wz=oz+dz; bool any=false;
-        for(int fa=0;fa<NGPU;fa++) if(occHitTol(occ,wpf,fa,wx,wy,wz,X0,Z0,DX,DZ,e)){any=true;break;}
+        for(int fa=0;fa<NGPU;fa++) if(occHitTol(occ,wpf,fa,wx,wy,wz,X0,Z0,DX,DZ,ae)){any=true;break;}
         if(any) absH++;
     }
     int s=atomicAdd(outCount,1);

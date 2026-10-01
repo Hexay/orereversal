@@ -14,7 +14,8 @@
 //   matcher_refine.cuh  — loadObs + the PASS-2 CPU refine.
 //
 // Usage: matcher <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv>
-//        [--error E] [--absw W] [--minfrac F] [--tile T] [--topk K] [--refine N] [--no-refine]
+//        [--error E] [--abs-error A] [--absw W] [--minfrac F] [--tile T] [--topk K] [--refine N]
+//        [--no-refine] [--legacy-gen]
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -31,17 +32,20 @@
 #include "matcher_refine.cuh"
 
 int main(int argc,char**argv){
-    if(argc<7){ fprintf(stderr,"usage: %s <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [--error E] [--absw W] [--minfrac F] [--tile T] [--topk K] [--refine N] [--no-refine] [--legacy-gen]\n",argv[0]); return 2; }
+    const char* usage="usage: %s <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [--error E] [--abs-error A] [--absw W] [--minfrac F] [--tile T] [--topk K] [--refine N] [--no-refine] [--legacy-gen]\n";
+    if(argc<7){ fprintf(stderr,usage,argv[0]); return 2; }
     uint64_t seed=(uint64_t)strtoll(argv[1],NULL,10);
     // resolve region_dump relative to this binary's dir (../harness/), robust to CWD
     { const char*a=argv[0]; int cut=-1; for(int i=0;a[i];i++) if(a[i]=='/'||a[i]=='\\') cut=i;
       if(cut>=0) snprintf(g_rdexe,sizeof(g_rdexe),"%.*s" PATHSEP RD_RELPATH,cut,a); }
     int cxMin=atoi(argv[2]),cxMax=atoi(argv[3]),czMin=atoi(argv[4]),czMax=atoi(argv[5]);
     const char* obspath=argv[6];
-    int e=0,tile=256,topk=4096,nRefine=64; float w=1.0f,minFrac=0.5f; bool refine=true; bool useCoop=true; bool gateOff=false;
+    // ae: absence tolerance, separate from e — see docs/research-log.md "P7"
+    int e=0,ae=0,tile=256,topk=4096,nRefine=64; float w=1.0f,minFrac=0.5f; bool refine=true; bool useCoop=true; bool gateOff=false;
     for(int i=7;i<argc;i++){
         if(!strcmp(argv[i],"--legacy-gen")) useCoop=false; else if(!strcmp(argv[i],"--coop")) useCoop=true; else
         if(!strcmp(argv[i],"--error")&&i+1<argc) e=atoi(argv[++i]);
+        else if(!strcmp(argv[i],"--abs-error")&&i+1<argc) ae=atoi(argv[++i]);
         else if(!strcmp(argv[i],"--absw")&&i+1<argc) w=(float)atof(argv[++i]);
         else if(!strcmp(argv[i],"--minfrac")&&i+1<argc) minFrac=(float)atof(argv[++i]);
         else if(!strcmp(argv[i],"--tile")&&i+1<argc) tile=atoi(argv[++i]);
@@ -49,6 +53,7 @@ int main(int argc,char**argv){
         else if(!strcmp(argv[i],"--refine")&&i+1<argc) nRefine=atoi(argv[++i]);
         else if(!strcmp(argv[i],"--no-refine")) refine=false;
         else if(!strcmp(argv[i],"--no-gate")) gateOff=true;
+        else { fprintf(stderr,"unknown or incomplete option: %s\n",argv[i]); fprintf(stderr,usage,argv[0]); return 2; }
     }
     if(tile>320){ fprintf(stderr,"warning: tile>320 risks a Windows TDR kill (kScore launch >2s); clamping to 256\n"); tile=256; }
     if(refine){ FILE*t=fopen(g_rdexe,"rb");   // refine would otherwise silently score without gravel/copper/iron
@@ -71,8 +76,8 @@ int main(int argc,char**argv){
     int marginCh=maxExt/16+2, minPres=(int)(minFrac*nOreGpu);
 
     long totCh=(long)(cxMax-cxMin+1)*(czMax-czMin+1);
-    printf("obs: %zu ore + %zu bare | search %ld chunks | anchor=%s(%d) tile=%d margin=%dch minfrac=%.2f e=%d w=%.1f\n",
-        ore.size(),bare.size(),totCh,FAMNAME[anchorFamily],best,tile,marginCh,minFrac,e,w);
+    printf("obs: %zu ore + %zu bare | search %ld chunks | anchor=%s(%d) tile=%d margin=%dch minfrac=%.2f e=%d ae=%d w=%.1f\n",
+        ore.size(),bare.size(),totCh,FAMNAME[anchorFamily],best,tile,marginCh,minFrac,e,ae,w);
 
     // Family-gated generation: only generate the GPU families this observation scores. kScore presence
     // reads just the obs ore families; absence (bare cells) probes ALL NGPU families, so fall back to the
@@ -157,7 +162,7 @@ int main(int argc,char**argv){
         kAnchorKey<<<(nAnchor+255)/256,256>>>(dAnchor,nAnchor,X0,Z0,dKeys);   // spatial sort for occ[] locality
         thrust::sort_by_key(thrust::device,dKeys,dKeys+nAnchor,dAnchor);
         kScore<<<(nHyp+127)/128,128>>>(dAnchor,nAnchor,dOre,nOreGpu,dBare,(int)bare.size(),
-            oax,oay,oaz,dOcc,wpf,X0,Z0,DX,DZ,e,w,minPres,dOut,dOcnt,outCap);
+            oax,oay,oaz,dOcc,wpf,X0,Z0,DX,DZ,e,ae,w,minPres,dOut,dOcnt,outCap);
         CK(cudaEventRecord(evC)); CK(cudaEventSynchronize(evC));
         { float ms; CK(cudaEventElapsedTime(&ms,evB,evC)); msScore+=ms; }
         int nSurv; CK(cudaMemcpy(&nSurv,dOcnt,4,cudaMemcpyDeviceToHost));
@@ -201,7 +206,7 @@ int main(int argc,char**argv){
         return 0;
     }
     int gravelMax=cnt[4]+cnt[5]+cnt[6];   // max margin gravel/copper/iron can add to any hypothesis
-    std::vector<Refined> rf; refineTop(seed,top,nRefine,ore,bare,maxExt,e,w,gravelMax,rf);
+    std::vector<Refined> rf; refineTop(seed,top,nRefine,ore,bare,maxExt,e,ae,w,gravelMax,rf);
     printf("\n(refined top %d with all 7 families incl. gravel/copper/iron)\n",(int)std::min((size_t)nRefine,top.size()));
     printf("%4s %22s %12s %7s %10s %8s %9s\n","rank","world_origin","chunk","orient","present","absH","final");
     for(size_t i=0;i<rf.size()&&i<10;i++){ auto&t=rf[i]; char o[24],ch[16];

@@ -32,10 +32,11 @@ def load_obs(path):
             (bare if fam=="bare" else ore).append((p[0],p[1],p[2],fam))
     return ore, bare
 
-def solve(cand, ore, bare, e, w=1.0, topk=300, topn=8):
+def solve(cand, ore, bare, e, w=1.0, topk=300, topn=8, ae=0):
     D=2*e
     dil={f:dilate(s,D) for f,s in cand.items() if any(o[3]==f for o in ore) or f in C.USABLE}
-    combined=set().union(*[dil[f] for f in dil]) if dil else set()   # "any usable ore here" (for absence)
+    # absence has its own tolerance (default exact) — see docs/research-log.md P7
+    combined=set().union(*[dilate(cand[f],2*ae) for f in dil]) if dil else set()   # "any usable ore here"
     fams=[f for f in {o[3] for o in ore} if cand.get(f)]
     if not fams: return [], None, 0
     anchor=min(fams, key=lambda f: len(cand[f]))
@@ -84,13 +85,14 @@ def main():
     ap.add_argument("--seed", default="123"); ap.add_argument("--version", default="1.18")
     ap.add_argument("--region", type=int, default=13)
     ap.add_argument("--error", type=int, default=0)
+    ap.add_argument("--abs-error", type=int, default=0, help="tolerance for bare cells (default exact)")
     ap.add_argument("--absence-weight", type=float, default=1.0)
     a=ap.parse_args()
     ore,bare=load_obs(a.observation)
     R=a.region
     cand=C.region_dump(a.seed,a.version,-R-1,R+1,-R-1,R+1)
-    res,anchor,nhyp=solve(cand, ore, bare, a.error, a.absence_weight)
-    print(f"obs: {len(ore)} ore + {len(bare)} bare | search {(2*R+1)**2} ch | anchor={anchor} hyps={nhyp} err=+-{a.error} w={a.absence_weight}")
+    res,anchor,nhyp=solve(cand, ore, bare, a.error, a.absence_weight, ae=a.abs_error)
+    print(f"obs: {len(ore)} ore + {len(bare)} bare | search {(2*R+1)**2} ch | anchor={anchor} hyps={nhyp} err=+-{a.error} abs_err=+-{a.abs_error} w={a.absence_weight}")
     if not res: print("no candidates."); return
     print(f"\n{'rank':>4} {'world_origin':>20} {'chunk':>11} {'orient':>7} {'present':>8} {'absHits':>8} {'final':>9}")
     for i,(loc,p,ah,fin,(r,mir)) in enumerate(res):

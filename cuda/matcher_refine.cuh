@@ -39,7 +39,7 @@ static bool hitTol(const std::unordered_set<uint64_t>&s,int x,int y,int z,int e)
 
 static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
         const std::vector<ObsCell>&ore,const std::vector<ObsCell>&bare,
-        int maxExt,int e,float w,int gravelMax,std::vector<Refined>&outv){
+        int maxExt,int e,int ae,float w,int gravelMax,std::vector<Refined>&outv){
     int marginCh=maxExt/16+2;
     float topFin = top.empty()?0:top[0].fin;
     // gravel/copper can add at most gravelMax; results further below the pass-1 top can't overtake. Always
@@ -80,7 +80,7 @@ static void refineTop(uint64_t seed,std::vector<Result>&top,int nRefine,
             if(hitTol(occ[o.fam],R.ox+dx,R.oy+o.y,R.oz+dz,e)) pres++; }
         int absH=0; for(auto&b:bare){ int dx,dz; orient_xz(b.x,b.z,R.r,R.mir,&dx,&dz);
             bool any=false;
-            for(int fa=0;fa<NACTIVE;fa++) if(hitTol(occ[fa],R.ox+dx,R.oy+b.y,R.oz+dz,e)){any=true;break;} if(any) absH++; }
+            for(int fa=0;fa<NACTIVE;fa++) if(hitTol(occ[fa],R.ox+dx,R.oy+b.y,R.oz+dz,ae)){any=true;break;} if(any) absH++; }
         outv[t]={R,pres,absH,pres-w*absH};
     }
     std::sort(outv.begin(),outv.end(),[](const Refined&a,const Refined&b){return a.fin>b.fin;});
