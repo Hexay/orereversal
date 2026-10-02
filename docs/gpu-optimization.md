@@ -145,6 +145,11 @@ wrong for kFillVeins: its FP64 pipe was 83% busy, and the bulk of that was the w
     far above FP32/FP64 rounding. Validated: regress.sh byte-identical incl. --legacy-gen parity, and
     identical survivor counts (0.9-4.9M each) for 5 seeds x 3 observations at --minfrac 0.15 over 512^2
     chunks. The only output differences were tie orderings that the old build also flips run to run.
+11. **kIronVeins behind FP32 screens (vein tuff, 512^2 chunks: +219 -> +55 ms over 66 ms generation).**
+    Vanilla's vein noise is FP64; the naive port was 86% SM-bound on it. Interleaved A/B, 3 rounds each:
+    FP32 corner screen alone 285 -> 207 ms (only ~12 ms is the all-chunk screen); exact corners only for
+    live cells 177; FP32 per-block strength/ridge screen 121. Each screen keeps a >=1e-4 margin over FP32
+    error and is mirrored in oretest, so the byte-exact diff against cubiomes covers it.
 - kScoreHypotheses precomputed probe offsets: TRIED, REVERTED (2026-10-01). Per (cell, orientation)
   int32 bit offsets relative to the anchor, computed per tile, replacing the orientation loop, x/z bounds
   checks and per-probe index math (the margin guarantees probes stay in the grid). Score 847 -> 805 ms

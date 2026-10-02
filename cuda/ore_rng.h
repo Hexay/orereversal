@@ -59,6 +59,29 @@ ORE_HD static inline int xNextIntJ(Xoroshiro* xr, uint32_t n) {
     return val;
 }
 
+// Unlike xNextIntJ, Lemire's method: what 1.18+ noise initialization uses.
+ORE_HD static inline int xNextInt(Xoroshiro* xr, uint32_t n) {
+    uint64_t r = (xNextLong(xr) & 0xFFFFFFFF) * n;
+    if ((uint32_t)r < n)
+        while ((uint32_t)r < (~n + 1) % n)
+            r = (xNextLong(xr) & 0xFFFFFFFF) * n;
+    return (int)(r >> 32);
+}
+
+ORE_HD static inline double xNextDouble(Xoroshiro* xr) {
+    return (xNextLong(xr) >> (64 - 53)) * 1.1102230246251565E-16;
+}
+
+// Vanilla's positional random: a fresh stream per block, derived from a base stream.
+ORE_HD static inline Xoroshiro xAtPos(const Xoroshiro* xr, int x, int y, int z) {
+    int64_t l = (int64_t)(int32_t)((uint32_t)x * 3129871u) ^ (int64_t)z * 116129781LL ^ (int64_t)y; // Java int wrap
+    uint64_t u = (uint64_t)l;
+    l = (int64_t)(u * u * 42317861ULL + u * 11ULL);
+    l >>= 16;
+    Xoroshiro r = {(uint64_t)l ^ xr->lo, xr->hi};
+    return r;
+}
+
 ORE_HD static inline float xNextFloat(Xoroshiro* xr) {
     return (xNextLong(xr) >> (64 - 24)) * 5.9604645E-8F;
 }

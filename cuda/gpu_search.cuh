@@ -7,6 +7,7 @@
 #include <thrust/execution_policy.h>
 #include "common.h"
 #include "generate.cuh"
+#include "iron_vein_kernel.cuh"
 #include "observation.h"
 #include "options.h"
 #include "score.cuh"
@@ -66,6 +67,11 @@ class GpuSearch {
         configIds_ = deviceCopy(configIds);
         ore_ = deviceCopy(obs.ore);
         bare_ = deviceCopy(obs.bare);
+        for (int id : configIds)
+            ironVeins_ |= ORE_CONFIGS_HOST[id].family == F_TUFF;
+        OreVeinNoise veinNoise;
+        initOreVeinNoise(&veinNoise, opt.seed);
+        veinNoise_ = deviceCopy(std::vector<OreVeinNoise>{veinNoise});
 
         cudaDeviceProp props;
         int smCount = cudaGetDeviceProperties(&props, 0) == cudaSuccess ? props.multiProcessorCount : 1;
@@ -134,6 +140,9 @@ class GpuSearch {
         } else if (!generateTwoKernel(chunks, grid, anchors, stats)) {
             return false;
         }
+        if (ironVeins_)
+            kIronVeins<<<chunks.countX * chunks.countZ, IRON_VEIN_BLOCK_SIZE>>>(
+                veinNoise_, chunks, grid, anchors, obs_.anchorFamily == F_TUFF);
         CUDA_CHECK(cudaEventRecord(generated_));
         CUDA_CHECK(cudaEventSynchronize(generated_));
         stats.msGenerate += elapsedMs(start_, generated_);
@@ -215,6 +224,8 @@ class GpuSearch {
     int *anchorCount_, *survivorCount_, *nextVein_, *configIds_;
     Result* survivors_;
     ObsCell *ore_, *bare_;
+    bool ironVeins_ = false;
+    OreVeinNoise* veinNoise_;
     VeinScratch scratch_ = {};
     cudaEvent_t start_, setupDone_, generated_, scored_;
 };

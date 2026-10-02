@@ -78,6 +78,14 @@ golden_diff() {   # port vs cubiomes for one version: only gravel/copper/iron ma
 golden_diff 1.18 | check golden_diff golden_diff
 golden_diff 1.20 | check golden_diff_120 golden_diff_120
 
+vein_diff() {   # iron-vein tuff (iron_veins.h) vs harness/ore_veins.h: must be identical
+  $ORETEST 123 -12 -5 -16 -9 -64 -1 +veins 2>/dev/null | tr -d '\r' | grep '^tuff,' | LC_ALL=C sort > "$TMP/port.csv"
+  $REGION_DUMP 123 1.18 -12 -5 -16 -9 -64 -1 tuff +veins 2>/dev/null | tr -d '\r' | grep '^tuff,' \
+    | LC_ALL=C sort > "$TMP/ref.csv"
+  echo "tuff blocks: $(wc -l < "$TMP/ref.csv"), differing: $(diff "$TMP/port.csv" "$TMP/ref.csv" | grep -c '^[<>]')"
+}
+vein_diff | check vein_diff vein_diff
+
 if [ $WITH_PY = 1 ]; then
   $PY python/solve.py $ROOM 2>&1 | check solve_py solve_py
 fi

@@ -749,7 +749,27 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
   BRANCH_MARGIN 24 (the agent's suggestion) also gave competitors freedom: margins 183->225 there but old
   real room 457->419, synthetic 970->950. BRANCH_MARGIN 12: 183->254 and every other margin unchanged
   except the 1.20 room (701->668). Chose 12.
-- OPEN: GPU port of the vein model (vein tuff is a pass-1 presence miss today).
+
+## P9 — GPU ore veins (2026-10-02): DONE. Pass 1 now generates iron-vein tuff.
+- WHY: survey of 2000 random 28x15x28 rooms on seed 123: 223 lose GPU-family cells to vein tuff in pass 1,
+  8 (0.4%) fall below --minfrac 0.5 and are HARD MISSES (truth never reaches refine; one got 0 survivors).
+  --minfrac 0.1 rescues them but survivors x30 and top-K saturates even at 1024 chunks: not a fix.
+- PORT: cuda/perlin.h (single-octave double Perlin), cuda/iron_veins.h (the band part of
+  harness/ore_veins.h: only iron-vein filler, copper veins start at y 0), cuda/iron_vein_kernel.cuh (one
+  block per chunk; vein tuff also feeds anchors when tuff is the anchor family). oretest +veins vs region_dump
+  +veins: 1367596 tuff blocks over 1024 chunks, 0 differ; Windows == Linux.
+- RESULTS: the 3 hard misses -> exact truth, full presence, 0 absence hits (margins 245 / unique / 96). REAL
+  vein room pass 1: 129/171 margin 45 shortlist -> 171/171 margin 112 CONFIDENT. 39/40 vein-affected
+  synthetic rooms exact in pass 1; the 40th is the surface-gate gap below. Winners and margins unchanged
+  elsewhere (noise1_abs 326 -> 324).
+- COST: FP64 is 1/64 rate, so exact evaluation runs behind three FP32 screens that only reject what the
+  exact test rejects (corner strength, cell, block strength+ridge; see iron_veins.h). Generation over 512^2
+  chunks: legacy 66 ms; naive port 285; screens 121 (pass 1 total ~+20%).
+- OPEN (refines P8's surface-gate decision): the GPU port ignores the surface gate for its four families.
+  Over 64^2 chunks it differs from cubiomes in 245 chunks (6%; lapis +-1100, lower granite 706 blocks),
+  presumably low terrain where a vein starting above the floor is really gated (e.g. buried lapis at y 58,
+  chunk (-9,-12)). P8's real-world check was on land. Synthetic rooms there fail (they use cubiomes as
+  truth); whether REAL rooms do needs a real observation from low terrain.
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU

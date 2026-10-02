@@ -1,6 +1,6 @@
 obs: 633 ore + 3791 bare | mc=1.18 | search 4096 chunks | anchor=lapis(1) tile=256 margin=3ch minfrac=0.50 e=1 ae=0 w=1.0
 gen-gating: 7/7 configs [tuff,redstone,lapis,granite] (all GPU families: bare-absence)
-scanned 1 tiles | 62495 anchor candidates | 639 survivors (minfrac pre-filter) | top-K=215
+scanned 1 tiles | 62495 anchor candidates | 735 survivors (minfrac pre-filter) | top-K=244
 
 (refined top 64 with all 8 families incl. gravel/copper/iron/diamond)
 rank           world_origin        chunk  orient    present     absH     final
@@ -9,8 +9,8 @@ rank           world_origin        chunk  orient    present     absH     final
    3        (482, -36, 336)     (30, 21)    r3m1 267/633      135     132.0
    4       (-110, -49, 146)      (-7, 9)    r1m-1 314/633      200     114.0
    5         (133, -15, 40)       (8, 2)    r3m1 278/633      201      77.0
-   6         (114, -26, 36)       (7, 2)    r1m1 292/633      255      37.0
-   7        (50, -54, -340)     (3, -22)    r1m-1 286/633      264      22.0
-   8       (-456, -43, 237)    (-29, 14)    r2m1 341/633      321      20.0
+   6      (-208, -22, -325)   (-13, -21)    r1m-1 294/633      239      55.0
+   7         (114, -26, 36)       (7, 2)    r1m1 292/633      255      37.0
+   8        (50, -54, -340)     (3, -22)    r1m-1 286/633      264      22.0
 
 top_final=633.0 margin=498.0 (vs best surviving hypothesis >35 blocks away) => CONFIDENT (unique)

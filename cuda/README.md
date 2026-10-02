@@ -15,12 +15,15 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
 | `ore_rng.h` | Xoroshiro128++ with Java semantics. Function names follow cubiomes' `rng.h`. |
 | `occupancy.h` | The occupancy grid (one bit per deepslate-band block per GPU family) and the anchor sink. |
 | `oregen.h` | Vein generation, a line-by-line port of cubiomes' `generateOres` / `generateVeinPart`. |
-| `oretest.c` | Prints `oregen.h`'s output in `harness/region_dump` format, for the bit-exact diff. |
+| `perlin.h` | 1.18+ double-Perlin noise (cubiomes `noise.c`), plus an FP32 approximation for screening. |
+| `iron_veins.h` | Iron-vein tuff (the deepslate-band part of `harness/ore_veins.h`) and its FP32 screens. |
+| `oretest.c` | Prints `oregen.h`'s output (and with `+veins`, iron-vein tuff) in `harness/region_dump` format, for the bit-exact diff. |
 | **Matcher** | |
 | `matcher.cu` | `main()`: parse options, load the observation, run pass 1, refine, report. |
 | `options.h` | Command-line options and usage text. |
 | `observation.h` | Loading the observation CSV and choosing the anchor family and GPU configs. |
 | `generate.cuh` | Generation kernels: `kSetupVeins` + `kFillVeins` (default) and `kGenerateLegacy`. |
+| `iron_vein_kernel.cuh` | `kIronVeins`: ORs iron-vein tuff into the tuff bitmap, one block per chunk. |
 | `score.cuh` | `kMortonKeys` (anchor sort keys) and `kScoreHypotheses`. |
 | `gpu_search.cuh` | `GpuSearch`: device buffers and the per-tile loop of pass 1. |
 | `top_k.h` | Merging tile survivors into the global top-K, one per neighbourhood. |
@@ -34,8 +37,8 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
 
 1. **Pass 1 (GPU, per tile).** `kSetupVeins` runs one thread per (chunk, ore config) and writes each
    vein's nodes to scratch. `kFillVeins` then runs one warp per vein and ORs the vein's blocks into
-   the occupancy grid for tuff, redstone, lapis and granite. Every candidate of the rarest observed
-   family becomes an anchor. `kScoreHypotheses` tests each anchor in 8 orientations for presence and
+   the occupancy grid for tuff, redstone, lapis and granite. `kIronVeins` adds iron-vein tuff. Every
+   candidate of the rarest observed family becomes an anchor. `kScoreHypotheses` tests each anchor in 8 orientations for presence and
    soft absence. Hypotheses that pass the `--minfrac` filter are merged into a global top-K.
 2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 8 families. Gravel, copper,
    iron, buried diamond and ore-vein blocks come from `region_dump`. Pass 2 stops at the point where
@@ -76,9 +79,14 @@ with no absence hits (margin 183 → 254); rooms where the gate was right keep t
 
 **Ore veins.** 1.18+ also places large iron veins (iron ore, raw iron and tuff filler, y −60..−8) from
 position-only noise, before ore features run. `region_dump +veins` models them with vanilla's cell
-interpolation, and refine adds their tuff and iron to the candidates. The GPU pass doesn't generate them,
-so in pass 1 vein tuff is a presence miss, absorbed by `--minfrac`. On a real room crossing a vein this took
+interpolation, and refine adds their tuff and iron to the candidates. On a real room crossing a vein this took
 the true location from 190/269 to 243/269 cells (margin 115 → 183, `examples/real_vein_room.csv`).
+Pass 1 generates the iron-vein tuff too (`iron_veins.h`, byte-identical to `region_dump +veins`). Without
+it, a room deep in a vein could fall below `--minfrac` and never reach refine (0.4% of random rooms).
+
+**Known gap: surface gate on the GPU families.** The GPU port never gates veins on terrain height. That
+matches real land worlds at least as well as cubiomes' approximation, but in low terrain (6% of chunks
+on seed 123) the two disagree and no real room there has been checked (`docs/research-log.md` P9).
 
 ## Validation
 
@@ -90,6 +98,8 @@ zero position diffs. Only gravel and copper differ, because they need the surfac
 ../harness/region_dump.exe 123 1.18 0 7 0 7 -64 -1 | tail +2 | sort > ref.csv
 diff port.csv ref.csv   # only gravel/copper lines
 ```
+
+`tests/regress.sh` also diffs `oretest +veins` against `region_dump +veins` (tuff lines, must be identical).
 
 **End to end against a real 1.18.2 world (seed 123).**
 
