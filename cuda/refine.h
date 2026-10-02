@@ -28,25 +28,25 @@ static bool containsNear(const BlockSet& s, int x, int y, int z, int tolerance) 
 }
 
 // Candidate blocks of every family over the chunk box, deepslate band only.
-static void generateAllFamilies(uint64_t seed, int chunkMinX, int chunkMaxX, int chunkMinZ, int chunkMaxZ,
-                                BlockSet* candidates) {
+static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
+                                int chunkMaxZ, BlockSet* candidates) {
     std::vector<OrePos> positions(200000);
     for (int cx = chunkMinX; cx <= chunkMaxX; cx++)
         for (int cz = chunkMinZ; cz <= chunkMaxZ; cz++)
             for (int c : gpuConfigIds()) {
-                const OreConfig* config = &ORE_CONFIGS_118_HOST[c];
+                const OreConfig* config = &ORE_CONFIGS_HOST[c];
                 int count = 0;
                 CandidateSink sink = {};
                 sink.list = positions.data();
                 sink.listCount = &count;
                 sink.listCapacity = (int)positions.size();
-                generateOreConfig(seed, config, cx, cz, &sink);
+                generateOreConfig(opt.seed, config, opt.era, cx, cz, &sink);
                 for (int k = 0; k < count; k++)
                     if (inBand(positions[k].y))
                         candidates[config->family].insert(
                             blockKey(positions[k].x, positions[k].y, positions[k].z));
             }
-    runRegionDump(seed, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, "gravel copper iron",
+    runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, "gravel copper iron",
                   [&](int family, int x, int y, int z) { candidates[family].insert(blockKey(x, y, z)); });
 }
 
@@ -96,7 +96,7 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
     for (int t = 0; t < count; t++) {
         const Result& r = top[t];
         BlockSet candidates[F_COUNT];
-        generateAllFamilies(opt.seed, ((r.originX - obs.maxExtent) >> 4) - margin,
+        generateAllFamilies(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
                             ((r.originX + obs.maxExtent) >> 4) + margin,
                             ((r.originZ - obs.maxExtent) >> 4) - margin,
                             ((r.originZ + obs.maxExtent) >> 4) + margin, candidates);

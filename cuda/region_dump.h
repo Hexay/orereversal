@@ -51,11 +51,11 @@ static int familyFromName(const char* name) {
 // Calls onBlock(family, x, y, z) for every deepslate-band candidate of `families` (space-separated
 // names) in the chunk box. Returns false if region_dump couldn't be started.
 template <class OnBlock>
-static bool runRegionDump(uint64_t seed, int chunkMinX, int chunkMaxX, int chunkMinZ, int chunkMaxZ,
-                          const char* families, OnBlock onBlock) {
+static bool runRegionDump(uint64_t seed, const char* version, int chunkMinX, int chunkMaxX, int chunkMinZ,
+                          int chunkMaxZ, const char* families, OnBlock onBlock) {
     char command[700];
-    snprintf(command, sizeof(command), "\"%s\" %llu 1.18 %d %d %d %d -64 -1 %s 2>" DEVNULL, g_regionDumpPath,
-             (unsigned long long)seed, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, families);
+    snprintf(command, sizeof(command), "\"%s\" %llu %s %d %d %d %d -64 -1 %s 2>" DEVNULL, g_regionDumpPath,
+             (unsigned long long)seed, version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, families);
     FILE* p = popen(command, "r");
     if (!p)
         return false;

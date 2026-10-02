@@ -1,4 +1,4 @@
-obs: 633 ore + 3791 bare | search 4096 chunks | anchor=lapis(1) tile=256 margin=3ch minfrac=0.50 e=0 ae=0 w=1.0
+obs: 633 ore + 3791 bare | mc=1.18 | search 4096 chunks | anchor=lapis(1) tile=256 margin=3ch minfrac=0.50 e=0 ae=0 w=1.0
 gen-gating: 7/7 configs [tuff,redstone,lapis,granite] (all GPU families: bare-absence)
 scanned 1 tiles | 62495 anchor candidates | 7 survivors (minfrac pre-filter) | top-K=3
 

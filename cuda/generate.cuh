@@ -35,8 +35,8 @@ struct VeinScratch {
     int* veinCount;
 };
 
-__global__ void kGenerateLegacy(uint64_t seed, ChunkGrid chunks, OccupancyGrid grid, AnchorSink anchors,
-                                int anchorFamily, const int* configIds, int configCount) {
+__global__ void kGenerateLegacy(uint64_t seed, int era, ChunkGrid chunks, OccupancyGrid grid,
+                                AnchorSink anchors, int anchorFamily, const int* configIds, int configCount) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid >= chunks.countX * chunks.countZ)
         return;
@@ -45,27 +45,27 @@ __global__ void kGenerateLegacy(uint64_t seed, ChunkGrid chunks, OccupancyGrid g
     sink.grid = grid;
     sink.anchors = anchors;
     for (int c = 0; c < configCount; c++) {
-        const OreConfig* config = &ORE_CONFIGS_118[configIds[c]];
+        const OreConfig* config = &ORE_CONFIGS[configIds[c]];
         sink.family = config->family;
         sink.isAnchorFamily = config->family == anchorFamily;
-        generateOreConfig(seed, config, chunkX, chunkZ, &sink);
+        generateOreConfig(seed, config, era, chunkX, chunkZ, &sink);
     }
 }
 
 // Config-major thread order, so a warp shares one config and its loop bounds.
-__global__ void kSetupVeins(uint64_t seed, ChunkGrid chunks, int anchorFamily, const int* configIds,
+__global__ void kSetupVeins(uint64_t seed, int era, ChunkGrid chunks, int anchorFamily, const int* configIds,
                             int configCount, VeinScratch scratch) {
     int64_t tid = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
     int64_t chunkCount = (int64_t)chunks.countX * chunks.countZ;
     if (tid >= chunkCount * configCount)
         return;
-    const OreConfig* config = &ORE_CONFIGS_118[configIds[tid / chunkCount]];
+    const OreConfig* config = &ORE_CONFIGS[configIds[tid / chunkCount]];
     int64_t chunkIndex = tid % chunkCount;
     int chunkX = chunks.originX + (int)(chunkIndex % chunks.countX);
     int chunkZ = chunks.originZ + (int)(chunkIndex / chunks.countX);
     int size = config->size;
 
-    Xoroshiro rng = oreConfigRng(seed, config, chunkX, chunkZ);
+    Xoroshiro rng = oreConfigRng(seed, config, era, chunkX, chunkZ);
     int attempts = veinAttempts(config, &rng);
     for (int a = 0; a < attempts; ++a) {
         VeinShape v = nextVeinShape(config, &rng, chunkX, chunkZ);

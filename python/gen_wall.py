@@ -12,6 +12,7 @@ from observation import Cell, write_observation
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--seed", default="123")
+    parser.add_argument("--version", default="1.18", help="Minecraft version, 1.18 or later")
     parser.add_argument("--x0", type=int, required=True, help="world x of the wall face")
     parser.add_argument("--y0", type=int, required=True, help="world y of the wall's bottom row")
     parser.add_argument("--z0", type=int, required=True, help="world z of the wall's first column")
@@ -21,7 +22,7 @@ def main():
     args = parser.parse_args()
 
     cx, cz = args.x0 >> 4, args.z0 >> 4
-    nearby = C.region_dump(args.seed, "1.18", cx - 2, cx + 2, cz - 2, ((args.z0 + args.w) >> 4) + 2)
+    nearby = C.region_dump(args.seed, args.version, cx - 2, cx + 2, cz - 2, ((args.z0 + args.w) >> 4) + 2)
     family_at = C.family_at(nearby)
     cells = [
         Cell(0, y - args.y0, z - args.z0, family_at.get((args.x0, y, z), "bare"))

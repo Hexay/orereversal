@@ -163,10 +163,12 @@ matcher.exe <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [options]
 ```
 
 The search region is given in **chunk** coordinates, inclusive. The matcher searches the deepslate
-band (Y −64 to −1).
+band (Y −64 to −1). Pass the world's Minecraft version with `--version`: 1.20 changed the seeds of
+lapis and copper, so results for a 1.20+ world are wrong without it.
 
 | Option | Default | Description |
 |---|---|---|
+| `--version V` | `1.18` | Minecraft version of the world, e.g. `1.20.4` or `1.21`. 1.18 and 1.19 share configs, as do 1.20 and later. |
 | `--error E` | `0` | Positional tolerance for ore cells, in blocks. Use 1–2 for positions read from images or video. |
 | `--abs-error A` | `0` | Positional tolerance for `bare` cells. Leave it at 0 unless the bare cells are misread too, because widening them next to dense tuff floods the absence score. |
 | `--absw W` | `1.0` | Weight of each absence hit (ore predicted on a `bare` cell). |

@@ -129,7 +129,7 @@ class GpuSearch {
         CUDA_CHECK(cudaEventRecord(start_));
         if (opt_.legacyGenerator) {
             int chunkCount = chunks.countX * chunks.countZ;
-            kGenerateLegacy<<<(chunkCount + 63) / 64, 64>>>(opt_.seed, chunks, grid, anchors,
+            kGenerateLegacy<<<(chunkCount + 63) / 64, 64>>>(opt_.seed, opt_.era, chunks, grid, anchors,
                                                             obs_.anchorFamily, configIds_, configCount_);
         } else if (!generateTwoKernel(chunks, grid, anchors, stats)) {
             return false;
@@ -155,8 +155,8 @@ class GpuSearch {
         CUDA_CHECK(cudaMemset(scratch_.veinCount, 0, sizeof(int)));
         CUDA_CHECK(cudaMemset(nextVein_, 0, sizeof(int)));
         int64_t items = (int64_t)chunks.countX * chunks.countZ * configCount_;
-        kSetupVeins<<<(int)((items + 255) / 256), 256>>>(opt_.seed, chunks, obs_.anchorFamily, configIds_,
-                                                         configCount_, scratch_);
+        kSetupVeins<<<(int)((items + 255) / 256), 256>>>(opt_.seed, opt_.era, chunks, obs_.anchorFamily,
+                                                         configIds_, configCount_, scratch_);
         CUDA_CHECK(cudaEventRecord(setupDone_));
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());

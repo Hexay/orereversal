@@ -10,9 +10,9 @@
 
 static void printObservationSummary(const Options& opt, const Observation& obs) {
     long long chunks = (long long)(opt.chunkMaxX - opt.chunkMinX + 1) * (opt.chunkMaxZ - opt.chunkMinZ + 1);
-    printf("obs: %zu ore + %zu bare | search %lld chunks | anchor=%s(%d) tile=%d margin=%dch minfrac=%.2f "
-           "e=%d ae=%d w=%.1f\n",
-           obs.ore.size(), obs.bare.size(), chunks, FAMILY_NAMES[obs.anchorFamily],
+    printf("obs: %zu ore + %zu bare | mc=%s | search %lld chunks | anchor=%s(%d) tile=%d margin=%dch "
+           "minfrac=%.2f e=%d ae=%d w=%.1f\n",
+           obs.ore.size(), obs.bare.size(), opt.version, chunks, FAMILY_NAMES[obs.anchorFamily],
            obs.familyCounts[obs.anchorFamily], opt.tileSize, tileMarginChunks(obs), opt.minPresenceFraction,
            opt.tolerance, opt.absenceTolerance, opt.absenceWeight);
 }
@@ -22,7 +22,7 @@ static void printGenerationGating(const std::vector<int>& configIds, bool allFam
     bool listed[GPU_FAMILY_COUNT] = {false};
     const char* separator = "";
     for (int c : configIds) {
-        int family = ORE_CONFIGS_118_HOST[c].family;
+        int family = ORE_CONFIGS_HOST[c].family;
         if (!listed[family]) {
             printf("%s%s", separator, FAMILY_NAMES[family]);
             separator = ",";

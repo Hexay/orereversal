@@ -58,11 +58,11 @@ ORE_HD static inline void orientXZ(int x, int z, int rotation, int mirror, int* 
     *outZ = z;
 }
 
-// Indices into ORE_CONFIGS_118 of the configs whose family the GPU generates, in table order.
+// Indices into ORE_CONFIGS of the configs whose family the GPU generates, in table order.
 static inline std::vector<int> gpuConfigIds() {
     std::vector<int> ids;
     for (int c = 0; c < ORE_CONFIG_COUNT; c++)
-        if (ORE_CONFIGS_118_HOST[c].family < GPU_FAMILY_COUNT)
+        if (ORE_CONFIGS_HOST[c].family < GPU_FAMILY_COUNT)
             ids.push_back(c);
     return ids;
 }

@@ -70,8 +70,8 @@ static bool loadObservation(const char* path, Observation& obs) {
     for (const std::vector<ObsCell>* cells : {&obs.ore, &obs.bare})
         for (const ObsCell& c : *cells) {
             obs.maxExtent = std::max(obs.maxExtent, std::max(abs(c.x), abs(c.z)));
-            obs.anchorReach = std::max(
-                obs.anchorReach, std::max(abs(c.x - obs.anchorCell.x), abs(c.z - obs.anchorCell.z)));
+            obs.anchorReach =
+                std::max(obs.anchorReach, std::max(abs(c.x - obs.anchorCell.x), abs(c.z - obs.anchorCell.z)));
         }
     return true;
 }
@@ -93,7 +93,7 @@ static inline int tileMarginChunks(const Observation& obs) {
 static std::vector<int> selectGpuConfigs(const Observation& obs, bool generateAll) {
     std::vector<int> ids;
     for (int c : gpuConfigIds())
-        if (generateAll || !obs.bare.empty() || obs.familyCounts[ORE_CONFIGS_118_HOST[c].family] > 0)
+        if (generateAll || !obs.bare.empty() || obs.familyCounts[ORE_CONFIGS_HOST[c].family] > 0)
             ids.push_back(c);
     return ids;
 }

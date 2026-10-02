@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include "ore_config.h"
 
 #define MAX_TILE_SIZE 320 // larger tiles risk a Windows TDR reset (a kernel running > 2 s)
 
@@ -12,8 +13,10 @@ struct Options {
     uint64_t seed;
     int chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ;
     const char* observationPath;
-    int tolerance = 0;        // --error
-    int absenceTolerance = 0; // --abs-error, see docs/research-log.md P7
+    const char* version = "1.18"; // Minecraft version of the world, e.g. 1.20.4
+    int era = ERA_1_18;           // derived from version
+    int tolerance = 0;            // --error
+    int absenceTolerance = 0;     // --abs-error, see docs/research-log.md P7
     float absenceWeight = 1.0f;
     float minPresenceFraction = 0.5f;
     int tileSize = 256; // chunks per tile side
@@ -26,6 +29,7 @@ struct Options {
 
 static const char* USAGE =
     "usage: %s <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [options]\n"
+    "  --version V     Minecraft version of the world, 1.18 or later (default 1.18)\n"
     "  --error E       ore-cell position tolerance in blocks (default 0)\n"
     "  --abs-error A   bare-cell position tolerance in blocks (default 0)\n"
     "  --absw W        weight of each absence hit (default 1.0)\n"
@@ -58,6 +62,8 @@ static bool parseOptions(int argc, char** argv, Options& o) {
             o.refine = false;
         else if (!strcmp(a, "--no-gate"))
             o.generateAllFamilies = true;
+        else if (!strcmp(a, "--version") && hasValue)
+            o.version = argv[++i];
         else if (!strcmp(a, "--error") && hasValue)
             o.tolerance = atoi(argv[++i]);
         else if (!strcmp(a, "--abs-error") && hasValue)
@@ -77,6 +83,11 @@ static bool parseOptions(int argc, char** argv, Options& o) {
             fprintf(stderr, USAGE, argv[0]);
             return false;
         }
+    }
+    o.era = oreEraFromVersion(o.version);
+    if (o.era < 0) {
+        fprintf(stderr, "unsupported version '%s': 1.18 or later is required\n", o.version);
+        return false;
     }
     if (o.tileSize > MAX_TILE_SIZE) {
         fprintf(stderr,

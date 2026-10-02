@@ -71,10 +71,11 @@ ORE_HD static inline double lerp(double t, double a, double b) {
 }
 
 // The RNG stream for one ore config in one chunk.
-ORE_HD static inline Xoroshiro oreConfigRng(uint64_t worldSeed, const OreConfig* c, int chunkX, int chunkZ) {
+ORE_HD static inline Xoroshiro oreConfigRng(uint64_t worldSeed, const OreConfig* c, int era, int chunkX,
+                                            int chunkZ) {
     uint64_t populationSeed = getPopulationSeed(worldSeed, chunkX << 4, chunkZ << 4);
     Xoroshiro rng;
-    xSetSeed(&rng, populationSeed + (uint64_t)c->index + 10000ULL * (uint64_t)c->step);
+    xSetSeed(&rng, populationSeed + (uint64_t)c->index[era] + 10000ULL * (uint64_t)c->step);
     return rng;
 }
 
@@ -212,9 +213,9 @@ ORE_HD static inline void generateVeinPart(const OreConfig* c, Xoroshiro* rng, c
 
 // All candidate blocks of one ore config in one chunk. Skips cubiomes' surface-height gate, which
 // never rejects a deepslate-band vein (that is why gravel and copper aren't generated this way).
-ORE_HD static inline void generateOreConfig(uint64_t worldSeed, const OreConfig* c, int chunkX, int chunkZ,
-                                            CandidateSink* sink) {
-    Xoroshiro rng = oreConfigRng(worldSeed, c, chunkX, chunkZ);
+ORE_HD static inline void generateOreConfig(uint64_t worldSeed, const OreConfig* c, int era, int chunkX,
+                                            int chunkZ, CandidateSink* sink) {
+    Xoroshiro rng = oreConfigRng(worldSeed, c, era, chunkX, chunkZ);
     int attempts = veinAttempts(c, &rng);
     for (int a = 0; a < attempts; ++a) {
         VeinShape v = nextVeinShape(c, &rng, chunkX, chunkZ);

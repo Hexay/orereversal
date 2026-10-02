@@ -56,6 +56,7 @@ ROOM=examples/obs_big_room.csv
 REGION="123 -32 31 -32 31"
 
 $PY python/make_observation.py --noise 1 --out "$TMP/noise1.csv" >/dev/null
+$PY python/make_observation.py --version 1.20 --out "$TMP/room_120.csv" >/dev/null
 grep -E '^(family|lapis|redstone|granite),' "$ROOM" > "$TMP/rare_only.csv"
 
 $MATCHER $REGION $ROOM                                  2>&1 | check clean_refine clean_refine
@@ -65,10 +66,15 @@ $MATCHER $REGION "$TMP/noise1.csv" --error 1            2>&1 | check noise1 nois
 $MATCHER $REGION "$TMP/noise1.csv" --error 1 --abs-error 1 2>&1 | check noise1_abs noise1_abs
 $MATCHER $REGION "$TMP/rare_only.csv"                   2>&1 | check rare_only rare_only
 $MATCHER 123 -16 15 -16 15 examples/real_polA.csv       2>&1 | check real_polA real_polA
+$MATCHER $REGION "$TMP/room_120.csv" --version 1.20     2>&1 | check room_120 room_120
 
-{ $ORETEST 123 0 7 0 7 -64 -1 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/port.csv"
-  $REGION_DUMP 123 1.18 0 7 0 7 -64 -1 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/ref.csv"
-  diff "$TMP/port.csv" "$TMP/ref.csv" | grep -E '^[<>]' | cut -d, -f1 | LC_ALL=C sort | uniq -c; } | check golden_diff golden_diff
+golden_diff() {   # port vs cubiomes for one version: only gravel/copper/iron may differ
+  $ORETEST 123 0 7 0 7 -64 -1 "$1" 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/port.csv"
+  $REGION_DUMP 123 "$1" 0 7 0 7 -64 -1 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/ref.csv"
+  diff "$TMP/port.csv" "$TMP/ref.csv" | grep -E '^[<>]' | cut -d, -f1 | LC_ALL=C sort | uniq -c
+}
+golden_diff 1.18 | check golden_diff golden_diff
+golden_diff 1.20 | check golden_diff_120 golden_diff_120
 
 if [ $WITH_PY = 1 ]; then
   $PY python/solve.py $ROOM 2>&1 | check solve_py solve_py
