@@ -105,9 +105,9 @@ Real worldgen couples ore to terrain in three ways. Only some families survive a
 
 | Family | Status | Notes |
 |---|---|---|
-| tuff, redstone, lapis, granite | **GPU, bit-exact** | Discard-free. These carry the search. |
+| tuff, redstone, lapis, granite | **GPU, bit-exact** | Discard-free. These carry the search. Refine adds the tuff that 1.18+ iron ore veins leave between y −60 and −8. |
 | gravel, copper | Refine (CPU) | Bit-exact via cubiomes, but they need the surface-height gate that the GPU port doesn't have. Gravel falls once disturbed, so treat it as a bonus. |
-| iron | Refine (CPU) | The 1.18 ore-vein noise isn't simulated, so a few real blocks are missed. Treat it as a bonus. |
+| iron | Refine (CPU) | Ore features plus 1.18+ iron ore veins. A few real blocks are still missed, so treat it as a bonus. |
 | diamond, gold, coal | **Excluded** | `discardChanceOnAirExposure > 0` desyncs the RNG against real terrain. |
 
 ## Requirements
@@ -285,7 +285,7 @@ precision budget, and every negative result.
 | [`python/`](python) | Python CPU reference: `solve.py` (the solver), `make_observation.py` and `gen_wall.py` (synthetic observations), `observation.py` (CSV reading and writing) and `candidates.py` (the `region_dump` wrapper). |
 | [`python/research/`](python/research) | The earlier research matchers that the research log cites. A frozen snapshot, kept for reproducibility. |
 | [`tests/`](tests) | `regress.sh` (byte-for-byte regression against `tests/expected/`) and `bench.sh` (GPU timing). |
-| [`examples/`](examples) | Observation CSVs: synthetic rooms and walls, and `real_pol*` (extracted from a real world). |
+| [`examples/`](examples) | Observation CSVs: synthetic rooms and walls, plus `real_pol*` and `real_vein_room` (rooms extracted from a real 1.18.2 world). |
 | [`docs/`](docs) | Observation format, research log, GPU optimization log, and the CUDA playbook. |
 
 ## Development

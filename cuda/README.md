@@ -63,7 +63,13 @@ usable for matching.
 |---|---|---|
 | tuff, redstone, lapis, granite | GPU, bit-exact | Discard-free, and need no surface gate |
 | gravel, copper | CPU refine via `region_dump.exe` | Their high Y ranges hit cubiomes' `mapApproxHeight` surface gate, which isn't ported |
-| iron | CPU refine via `region_dump.exe` | Discard-free, but the separate 1.18 ore-vein noise isn't simulated (about 2 of 16 real deep blocks are missed) |
+| iron | CPU refine via `region_dump.exe` | Discard-free ore features, plus iron ore veins (`harness/ore_veins.h`) |
+
+**Ore veins.** 1.18+ also places large iron veins (iron ore, raw iron and tuff filler, y −60..−8) from
+position-only noise, before ore features run. `region_dump +veins` models them with vanilla's cell
+interpolation, and refine adds their tuff and iron to the candidates. The GPU pass doesn't generate them,
+so in pass 1 vein tuff is a presence miss, absorbed by `--minfrac`. On a real room crossing a vein this took
+the true location from 190/269 to 243/269 cells (margin 115 → 183, `examples/real_vein_room.csv`).
 | diamond, gold, coal | Excluded | Air-exposure discard (see 2 above) |
 
 ## Validation

@@ -720,16 +720,22 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
 - EROSION (done): --abs-error A now counts a bare cell only if ore is predicted throughout +-A (dilation
   flooded absence). noise1 --abs-error 1: -107 shortlist -> exact, margin 337 CONFIDENT. With bare cells
   also jittered +-2 the agent measured erosion 254 (5/5 exact origin) vs dilation 121 (0/5).
-- NEGATIVE: dropping gravel/copper/iron from refine's absence (they "ghost" on real stone 2-10%) LOWERED
-  margins (452->416, real room 459->394) and never helped: the true location had 0 absence hits in every
-  test room. Reverted. Revisit only with an explored real room where gravel has fallen.
+- NEGATIVE: dropping gravel/copper/iron from refine's absence (they "ghost" on real stone 2-10%). Synthetic +
+  old real room: margins fell (452->416, 459->394). Real VEIN room (below), whose truth takes 45 gravel ghost
+  hits: margin only 183->185, because the best competitor gains about as much. Net negative; reverted.
+  Margins are relative, so a ghost that also hits competitors mostly cancels.
+- ORE VEINS (done, CPU): harness/ore_veins.h models vanilla OreVeinifier with 4x8x4 cell interpolation
+  (cubiomes' getOreVeinBlockAt samples per block and is wrong). Byte-identical to the agent's validated
+  probe (630 blocks, 49 chunks). region_dump +veins; refine and python candidates use it. REAL room through an
+  iron vein (examples/real_vein_room.csv, box 2..29,-50..-36,98..125): truth 190/269 -> 243/269, margin
+  115 -> 183. The remaining 26 misses + 45 absence hits are all gravel surface-gate desync. GPU pass 1 does
+  not generate veins (~150 LOC Perlin port; vein tuff is only a presence miss there, absorbed by minfrac).
 - DECIDED AGAINST (for now): GPU port of cubiomes' approximate surface gate. Measured against the REAL world
   the ungated port is barely worse for lapis (88 vs 50 misses of 5837 deep blocks) and BETTER for lower
   granite (0 vs 30 ghosts: cubiomes' approximation wrongly gates 5/909 veins). ~300 LOC of FP64 noise for
   ~0.6pp lapis. Cheaper if ever needed: try both gate outcomes at refine for borderline veins.
-- OPEN, ranked: interpolated ore-vein model for tuff/iron (explains 3547/3550 deep tuff misses, 761/989
-  iron misses; position-only, no desync risk); buried diamond (discard 1.0, exact) as a one-sided family;
-  lower diorite/andesite (identical to lower granite); rarity weighting (+7%, keep iron capped).
+- OPEN, ranked: buried diamond (discard 1.0, exact) as a one-sided family; lower diorite/andesite
+  (identical to lower granite, reach only y -6..-1); rarity weighting (+7%, keep iron capped); GPU vein port.
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU

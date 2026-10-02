@@ -12,11 +12,18 @@ REGION_DUMP = os.path.join(ROOT, "harness", "region_dump" + (".exe" if os.name =
 USABLE = ("tuff", "gravel", "granite", "copper", "iron", "redstone", "lapis")
 
 
-def region_dump(seed, version, chunk_min_x, chunk_max_x, chunk_min_z, chunk_max_z, min_y=-64, max_y=-1):
-    """Returns {family: {(x, y, z), ...}} for the chunk box and y range."""
+def region_dump(
+    seed, version, chunk_min_x, chunk_max_x, chunk_min_z, chunk_max_z, min_y=-64, max_y=-1, veins=True
+):
+    """Returns {family: {(x, y, z), ...}} for the chunk box and y range, including ore-vein blocks
+    (iron-vein tuff/iron, copper-vein granite/copper) unless veins=False."""
     bounds = (chunk_min_x, chunk_max_x, chunk_min_z, chunk_max_z, min_y, max_y)
+    extra = ["+veins"] if veins else []
     result = subprocess.run(
-        [REGION_DUMP, str(seed), version, *map(str, bounds)], capture_output=True, text=True, check=True
+        [REGION_DUMP, str(seed), version, *map(str, bounds), *extra],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     candidates = collections.defaultdict(set)
     for line in result.stdout.splitlines()[1:]:

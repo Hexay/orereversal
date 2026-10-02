@@ -67,6 +67,7 @@ $MATCHER $REGION "$TMP/noise1.csv" --error 1 --abs-error 1 2>&1 | check noise1_a
 $MATCHER $REGION "$TMP/rare_only.csv"                   2>&1 | check rare_only rare_only
 $MATCHER 123 -16 15 -16 15 examples/real_polA.csv       2>&1 | check real_polA real_polA
 $MATCHER $REGION "$TMP/room_120.csv" --version 1.20     2>&1 | check room_120 room_120
+$MATCHER 123 -16 15 -16 15 examples/real_vein_room.csv  2>&1 | check real_vein_room real_vein_room
 
 golden_diff() {   # port vs cubiomes for one version: only gravel/copper/iron may differ
   $ORETEST 123 0 7 0 7 -64 -1 "$1" 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/port.csv"

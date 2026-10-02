@@ -47,7 +47,8 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
                         candidates[config->family].insert(
                             blockKey(positions[k].x, positions[k].y, positions[k].z));
             }
-    runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, "gravel copper iron",
+    runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ,
+                  "gravel copper iron +veins",
                   [&](int family, int x, int y, int z) { candidates[family].insert(blockKey(x, y, z)); });
 }
 
