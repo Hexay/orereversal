@@ -6,6 +6,8 @@
 //   Y band defaults to -64..-1. Families: tuff redstone lapis gravel granite copper iron (default: all).
 //   +veins also emits ore-vein blocks (ore_veins.h) under their family: tuff/iron from iron veins,
 //   granite/copper from copper veins. Off by default so the output stays comparable with cuda/oretest.
+//   +branch emits both outcomes of borderline surface-gate decisions for gravel and copper (ore_branch.h),
+//   tagging such blocks family~<group>~<variant>.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +18,7 @@
 #include "finders.h"
 #include "biomenoise.h"
 #include "ore_veins.h"
+#include "ore_branch.h"
 
 typedef struct {
     int oreType; // cubiomes enum Ores
@@ -77,6 +80,37 @@ static long emitVeinBlocks(OreVeinParameters* p, int cx, int cz, int yMin, int y
     return count;
 }
 
+static long emitBlocks(const char* family, const char* tag, const Pos3List* blocks, int yMin, int yMax) {
+    long count = 0;
+    for (int k = 0; k < blocks->size; k++) {
+        Pos3 p = blocks->pos3s[k];
+        if (p.y < yMin || p.y > yMax)
+            continue;
+        printf("%s%s,%d,%d,%d\n", family, tag, p.x, p.y, p.z);
+        count++;
+    }
+    return count;
+}
+
+// One gate-sensitive config in one chunk. A single variant prints as usual; several print as
+// "family~<group>~<variant>" so refine can pick one per group (ore_branch.h).
+static long emitBranched(HeightCache* heights, int mc, uint64_t seed, OreConfig config, const char* family,
+                         int cx, int cz, int yMin, int yMax) {
+    BranchVariants v;
+    generateBranchedOres(heights, mc, seed, config, cx, cz, &v);
+    long count = 0;
+    for (int k = 0; k < v.count; k++) {
+        char tag[64] = "";
+        if (v.count > 1) {
+            snprintf(tag, sizeof(tag), "~%d_%d_%d~%d", cx, cz, config.index, k);
+            printf("%s%s,0,-1000,0\n", family, tag); // declares the variant even if none of it is in the band
+        }
+        count += emitBlocks(family, tag, &v.variants[k], yMin, yMax);
+        freePos3List(&v.variants[k]);
+    }
+    return count;
+}
+
 static int looksNumeric(const char* s) {
     return s[0] == '-' || (s[0] >= '0' && s[0] <= '9');
 }
@@ -101,10 +135,12 @@ int main(int argc, char** argv) {
         yMax = atoi(argv[8]);
         firstFamilyArg = 9;
     }
-    int veins = 0, familyArgs = 0;
+    int veins = 0, branch = 0, familyArgs = 0;
     for (int a = firstFamilyArg; a < argc; a++) {
         if (!strcmp(argv[a], "+veins"))
             veins = 1;
+        else if (!strcmp(argv[a], "+branch"))
+            branch = 1;
         else
             familyArgs++;
     }
@@ -129,8 +165,10 @@ int main(int argc, char** argv) {
             cxMax, czMin, czMax, yMin, yMax);
     printf("family,x,y,z\n");
     long total = 0;
+    HeightCache heights;
     for (int cx = cxMin; cx <= cxMax; cx++) {
         for (int cz = czMin; cz <= czMax; cz++) {
+            initHeightCache(&heights, &g, &sn, cx, cz);
             for (int i = 0; i < ORE_COUNT; i++) {
                 OreConfig config;
                 if (!enabled[i] || !getOreConfig(ORES[i].oreType, mc, 0, &config))
@@ -139,14 +177,12 @@ int main(int argc, char** argv) {
                 // RNG stream, so this leaves the others' output unchanged (and drops upper iron's 90 veins).
                 if (config.h1 - config.size > yMax || config.h2 + config.size < yMin)
                     continue;
-                Pos3List blocks = generateOres(&g, &sn, config, cx, cz);
-                for (int k = 0; k < blocks.size; k++) {
-                    Pos3 p = blocks.pos3s[k];
-                    if (p.y < yMin || p.y > yMax)
-                        continue;
-                    printf("%s,%d,%d,%d\n", ORES[i].family, p.x, p.y, p.z);
-                    total++;
+                if (branch && (ORES[i].oreType == GravelOre || ORES[i].oreType == CopperOre)) {
+                    total += emitBranched(&heights, mc, seed, config, ORES[i].family, cx, cz, yMin, yMax);
+                    continue;
                 }
+                Pos3List blocks = generateOres(&g, &sn, config, cx, cz);
+                total += emitBlocks(ORES[i].family, "", &blocks, yMin, yMax);
                 freePos3List(&blocks);
             }
             if (veins)

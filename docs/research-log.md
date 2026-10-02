@@ -740,7 +740,16 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
   diamonds: 249/277, margin 183 -> 189. Index 20 > tuff's 8, so it overwrites tuff (synthetic labels follow).
 - SKIPPED: lower diorite/andesite (identical to lower granite but only reach y -6..-1 in the band; each would
   cost a GPU occupancy slot); rarity weighting (+7%, but weights non-exact iron heavily).
-- OPEN: GPU port of the vein model (vein tuff is a pass-1 presence miss today); evidence-branched gravel gate.
+- GATE BRANCHING (done, refine): harness/ore_branch.h replays cubiomes' gravel/copper loop with a copyable
+  RNG; for veins whose start is within BRANCH_MARGIN of the approximate surface it enumerates both gate
+  outcomes as a decision tree (<= 3 branch points, <= 8 variants; later veins' RNG depends on earlier
+  decisions). Variant 0 == cubiomes byte-for-byte (169359 blocks, 625 chunks). Refine picks the best
+  variant per (chunk, config) group per hypothesis (greedy, only groups reaching the footprint).
+  Real vein room: 243/269 + 45 absence hits -> 269/269 + 0 (every remaining error was a gate misjudgement).
+  BRANCH_MARGIN 24 (the agent's suggestion) also gave competitors freedom: margins 183->225 there but old
+  real room 457->419, synthetic 970->950. BRANCH_MARGIN 12: 183->254 and every other margin unchanged
+  except the 1.20 room (701->668). Chose 12.
+- OPEN: GPU port of the vein model (vein tuff is a pass-1 presence miss today).
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU

@@ -1,8 +1,10 @@
-// Pass 2 on the CPU: re-score the best pass-1 hypotheses with all seven families. Gravel, copper and
-// iron come from region_dump, since the GPU doesn't generate them.
+// Pass 2 on the CPU: re-score the best pass-1 hypotheses with every family. Gravel, copper, iron, buried
+// diamond and ore veins come from region_dump, since the GPU doesn't generate them.
 #ifndef REFINE_H
 #define REFINE_H
 #include <algorithm>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "common.h"
@@ -28,9 +30,17 @@ static bool containsNear(const BlockSet& s, int x, int y, int z, int tolerance) 
     return false;
 }
 
-// Candidate blocks of every family over the chunk box, deepslate band only.
+// One surface-gate-sensitive config in one chunk: alternative outcomes, exactly one of them real
+// (harness/ore_branch.h). Variant 0 is cubiomes' own guess.
+struct VariantGroup {
+    int family;
+    std::vector<std::vector<OrePos>> variants;
+};
+
+// Candidate blocks of every family over the chunk box, deepslate band only. Gate-sensitive gravel and
+// copper come as groups of alternatives instead.
 static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
-                                int chunkMaxZ, BlockSet* candidates) {
+                                int chunkMaxZ, BlockSet* candidates, std::vector<VariantGroup>& groups) {
     std::vector<OrePos> positions(200000);
     for (int cx = chunkMinX; cx <= chunkMaxX; cx++)
         for (int cz = chunkMinZ; cz <= chunkMaxZ; cz++)
@@ -47,9 +57,23 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
                         candidates[config->family].insert(
                             blockKey(positions[k].x, positions[k].y, positions[k].z));
             }
+    std::unordered_map<std::string, int> groupIndex;
     runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ,
-                  "gravel copper iron diamond +veins",
-                  [&](int family, int x, int y, int z) { candidates[family].insert(blockKey(x, y, z)); });
+                  "gravel copper iron diamond +veins +branch",
+                  [&](int family, const char* group, int variant, int x, int y, int z) {
+                      if (!group[0]) {
+                          candidates[family].insert(blockKey(x, y, z));
+                          return;
+                      }
+                      auto it = groupIndex.emplace(group, (int)groups.size()).first;
+                      if (it->second == (int)groups.size())
+                          groups.push_back({family, {}});
+                      VariantGroup& g = groups[it->second];
+                      if ((int)g.variants.size() <= variant)
+                          g.variants.resize(variant + 1);
+                      if (inBand(y))
+                          g.variants[variant].push_back({x, y, z});
+                  });
 }
 
 static bool anyOreAt(const BlockSet* candidates, int x, int y, int z) {
@@ -90,6 +114,45 @@ static Result scoreHypothesis(const Result& r, const Observation& obs, const Blo
     }
     out.score = out.present - opt.absenceWeight * out.absenceHits;
     return out;
+}
+
+static bool touchesFootprint(const std::vector<OrePos>& blocks, const Result& r, int reach) {
+    for (const OrePos& p : blocks)
+        if (abs(p.x - r.originX) <= reach && abs(p.z - r.originZ) <= reach)
+            return true;
+    return false;
+}
+
+// For each variant group, adds to `candidates` the variant that scores best for r (cubiomes' guess on
+// ties). Groups that don't reach the observation's footprint just get cubiomes' guess. Every hypothesis
+// gets the same freedom, so this doesn't favour the true location by construction.
+static void chooseVariants(const Result& r, const Observation& obs, BlockSet* candidates,
+                           const std::vector<VariantGroup>& groups, const Options& opt) {
+    int reach = obs.maxExtent + std::max(opt.tolerance, opt.absenceTolerance) + 1;
+    for (const VariantGroup& g : groups) {
+        int best = 0;
+        bool relevant = std::any_of(g.variants.begin(), g.variants.end(), [&](const std::vector<OrePos>& v) {
+            return touchesFootprint(v, r, reach);
+        });
+        if (relevant) {
+            float bestScore = -1e30f;
+            for (int v = 0; v < (int)g.variants.size(); v++) {
+                std::vector<uint64_t> added;
+                for (const OrePos& p : g.variants[v])
+                    if (candidates[g.family].insert(blockKey(p.x, p.y, p.z)).second)
+                        added.push_back(blockKey(p.x, p.y, p.z));
+                float score = scoreHypothesis(r, obs, candidates, opt).score;
+                for (uint64_t key : added)
+                    candidates[g.family].erase(key);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = v;
+                }
+            }
+        }
+        for (const OrePos& p : g.variants[best])
+            candidates[g.family].insert(blockKey(p.x, p.y, p.z));
+    }
 }
 
 // With --error e the anchor cell is itself off by up to e, so the hypothesis' origin is too. Re-scoring
@@ -144,10 +207,12 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
     for (int t = 0; t < (int)chosen.size(); t++) {
         const Result& r = chosen[t];
         BlockSet candidates[F_COUNT];
+        std::vector<VariantGroup> groups;
         generateAllFamilies(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
                             ((r.originX + obs.maxExtent) >> 4) + margin,
                             ((r.originZ - obs.maxExtent) >> 4) - margin,
-                            ((r.originZ + obs.maxExtent) >> 4) + margin, candidates);
+                            ((r.originZ + obs.maxExtent) >> 4) + margin, candidates, groups);
+        chooseVariants(r, obs, candidates, groups, opt);
         refined[t] = rescore(r, obs, candidates, opt);
     }
     std::sort(refined.begin(), refined.end(), rankedBefore);

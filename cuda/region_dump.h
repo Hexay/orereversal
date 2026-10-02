@@ -48,8 +48,10 @@ static int familyFromName(const char* name) {
     return -1;
 }
 
-// Calls onBlock(family, x, y, z) for every deepslate-band candidate of `families` (space-separated
-// names) in the chunk box. Returns false if region_dump couldn't be started.
+// Calls onBlock(family, group, variant, x, y, z) for every deepslate-band candidate of `families` (space-
+// separated names and region_dump flags) in the chunk box. group is "" for ordinary candidates; with
+// +branch, alternative surface-gate outcomes come as numbered variants of a named group, of which exactly
+// one is real. Returns false if region_dump couldn't be started.
 template <class OnBlock>
 static bool runRegionDump(uint64_t seed, const char* version, int chunkMinX, int chunkMaxX, int chunkMinZ,
                           int chunkMaxZ, const char* families, OnBlock onBlock) {
@@ -59,15 +61,21 @@ static bool runRegionDump(uint64_t seed, const char* version, int chunkMinX, int
     FILE* p = popen(command, "r");
     if (!p)
         return false;
-    char line[128];
+    char line[160];
     while (fgets(line, sizeof(line), p)) {
-        char name[32];
-        int x, y, z;
-        if (sscanf(line, "%31[^,],%d,%d,%d", name, &x, &y, &z) != 4 || y < -64 || y >= 0)
+        char name[32], group[48] = "";
+        int variant = 0, x, y, z;
+        if (sscanf(line, "%31[^~,]~%47[^~]~%d,%d,%d,%d", name, group, &variant, &x, &y, &z) != 6) {
+            group[0] = '\0';
+            variant = 0;
+            if (sscanf(line, "%31[^,],%d,%d,%d", name, &x, &y, &z) != 4)
+                continue;
+        }
+        if (!group[0] && (y < -64 || y >= 0)) // group lines pass through: one per variant declares it
             continue;
         int family = familyFromName(name);
         if (family >= 0)
-            onBlock(family, x, y, z);
+            onBlock(family, group, variant, x, y, z);
     }
     pclose(p);
     return true;

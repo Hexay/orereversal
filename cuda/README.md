@@ -65,6 +65,13 @@ usable for matching.
 | gravel, copper | CPU refine via `region_dump.exe` | Their high Y ranges hit cubiomes' `mapApproxHeight` surface gate, which isn't ported |
 | iron | CPU refine via `region_dump.exe` | Discard-free ore features, plus iron ore veins (`harness/ore_veins.h`) |
 
+**Surface gate.** Gravel and copper veins are only placed if the terrain reaches their start height.
+cubiomes approximates that terrain, and when it misjudges a vein every later vein of that config in the
+chunk shifts. For veins within 12 blocks of the approximate surface, `region_dump +branch`
+(`harness/ore_branch.h`) generates both outcomes as alternative variants, and refine keeps whichever fits
+each hypothesis best. On the real vein room this took the true location from 243/269 to 269/269 cells
+with no absence hits (margin 183 → 254); rooms where the gate was right keep their margins.
+
 **Ore veins.** 1.18+ also places large iron veins (iron ore, raw iron and tuff filler, y −60..−8) from
 position-only noise, before ore features run. `region_dump +veins` models them with vanilla's cell
 interpolation, and refine adds their tuff and iron to the candidates. The GPU pass doesn't generate them,
