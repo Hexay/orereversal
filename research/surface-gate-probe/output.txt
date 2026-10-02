@@ -1,0 +1,72 @@
+== family recall: real blocks NOT in cubiomes feature candidates ==
+  tuff     y[-64,0) buried real=491222 miss= 3550 explained by vein: direct= 2824 interp= 3547
+  iron     y[-64,0) buried real=  9737 miss=  989 explained by vein: direct=  623 interp=  761
+  redstone y[-64,0) buried real= 14554 miss=    0 explained by vein: direct=    0 interp=    0
+  lapis    y[-64,0) buried real=  5837 miss=   50 explained by vein: direct=    0 interp=    0
+  gravel   y[-64,0) buried real=102334 miss= 2618 explained by vein: direct=    0 interp=    0
+  copper   y[-64,0) buried real=  2129 miss=  258 explained by vein: direct=    0 interp=    0
+  granite  y[-64,0) buried real= 14397 miss=    0 explained by vein: direct=    0 interp=    0
+  granite  y[0,51) buried real=368808 miss=11839 explained by vein: direct= 8499 interp=10734
+  copper   y[0,51) buried real= 29901 miss= 5885 explained by vein: direct= 2589 interp= 3344
+  gravel   y[0,320) buried real=101377 miss= 4830 explained by vein: direct=    0 interp=    0
+  rawiron  real=15 in VD=13 in VI=15
+  rawcopper real=70 in VD=63 in VI=70
+== vein prediction precision on buried solid cells (y<=top-2) ==
+  tuff     direct: predicted=  3684 real-same-block=  2907 (78.9%)
+  tuff     interp: predicted=  4083 real-same-block=  3640 (89.2%)
+  iron     direct: predicted=   736 real-same-block=   623 (84.6%)
+  iron     interp: predicted=   801 real-same-block=   761 (95.0%)
+  granite  direct: predicted= 13712 real-same-block=  9216 (67.2%)
+  granite  interp: predicted= 15090 real-same-block= 11599 (76.9%)
+  copper   direct: predicted=  3135 real-same-block=  2604 (83.1%)
+  copper   interp: predicted=  3487 real-same-block=  3360 (96.4%)
+== surface gate: cubiomes approx vs real terrain top (OCEAN_FLOOR_WG ~ top+1) ==
+  4x4 cells=8464 approx-real: mean=-1.9 median=-1 p5=-10 p95=2 |err|<=4: 83%
+  oreType  3 buried_lapis   veins=  2080 cubiomesPass=  2035 realPass=  2044 DISAGREE=   19 (0.91%)
+  oreType  6 copper         veins=  8103 cubiomesPass=  6035 realPass=  6236 DISAGREE=  289 (3.57%)
+  oreType 17 gravel         veins=  6736 cubiomesPass=  2397 realPass=  2454 DISAGREE=   61 (0.91%)
+  oreType 19 lapis          veins=  1037 cubiomesPass=  1037 realPass=  1037 DISAGREE=    0 (0.00%)
+  oreType 27 lower_granite  veins=   909 cubiomesPass=   904 realPass=   909 DISAGREE=    5 (0.55%)
+  oreType 28 lower_redstone veins=  4143 cubiomesPass=  4143 realPass=  4143 DISAGREE=    0 (0.00%)
+  oreType 31 middle_iron    veins=  5072 cubiomesPass=  5069 realPass=  5067 DISAGREE=    6 (0.12%)
+  oreType 35 redstone       veins=  2069 cubiomesPass=  2069 realPass=  2069 DISAGREE=    0 (0.00%)
+  oreType 37 small_iron     veins=  5185 cubiomesPass=  4919 realPass=  4942 DISAGREE=   81 (1.56%)
+  oreType 39 tuff           veins=   920 cubiomesPass=   920 realPass=   920 DISAGREE=    0 (0.00%)
+  oreType 43 upper_granite  veins=    68 cubiomesPass=     3 realPass=    10 DISAGREE=    7 (10.29%)
+  oreType 44 upper_iron     veins= 45504 cubiomesPass=     0 realPass=     2 DISAGREE=    2 (0.00%)
+== GPU-equivalent (ungated) vs cubiomes-gated recall, deep band, buried ==
+  tuff     real=491222 miss gated(cubiomes)= 3550 miss ungated(GPU-style)= 3550  ungated-not-gated cands=0
+  redstone real= 14554 miss gated(cubiomes)=    0 miss ungated(GPU-style)=    0  ungated-not-gated cands=0
+  lapis    real=  5837 miss gated(cubiomes)=   50 miss ungated(GPU-style)=   88  ungated-not-gated cands=744
+  granite  real= 14397 miss gated(cubiomes)=    0 miss ungated(GPU-style)=    0  ungated-not-gated cands=78668
+  copper   real=  2129 miss gated(cubiomes)=  258 miss ungated(GPU-style)= 1461  ungated-not-gated cands=68080
+  iron     real=  9737 miss gated(cubiomes)=  989 miss ungated(GPU-style)= 1413  ungated-not-gated cands=3258
+== are deep misses localised to chunks whose gate decision disagrees with real terrain? ==
+  gravel  disagreeing chunks= 52 (3x3 nbhd covers 270/441) deep misses= 2618 of which inside nbhd= 2596
+  copper  disagreeing chunks=170 (3x3 nbhd covers 511/441) deep misses=  258 of which inside nbhd=  258
+  lapis   disagreeing chunks= 17 (3x3 nbhd covers 113/441) deep misses=   50 of which inside nbhd=   50
+  iron    disagreeing chunks= 72 (3x3 nbhd covers 366/441) deep misses=  228 of which inside nbhd=  228
+== ambiguity band: veins with |cubiomesMaxH - startY| <= T (candidates for branch-both) ==
+  gravel         T=4: amb=2.2% caught=36/61 | T=8: amb=3.8% caught=39/61 | T=12: amb=5.8% caught=42/61 | T=16: amb=7.7% caught=46/61 | T=24: amb=12.0% caught=59/61
+  copper         T=4: amb=9.6% caught=175/289 | T=8: amb=17.7% caught=217/289 | T=12: amb=26.9% caught=240/289 | T=16: amb=35.1% caught=258/289 | T=24: amb=51.4% caught=282/289
+  buried_lapis   T=4: amb=2.6% caught=8/19 | T=8: amb=6.8% caught=14/19 | T=12: amb=10.3% caught=19/19 | T=16: amb=13.2% caught=19/19 | T=24: amb=18.5% caught=19/19
+  mid+small iron T=4: amb=3.0% caught=58/87 | T=8: amb=5.1% caught=67/87 | T=12: amb=7.3% caught=76/87 | T=16: amb=9.5% caught=84/87 | T=24: amb=15.4% caught=86/87
+== ghost candidates: deep candidate cells whose real block is plain deepslate/stone (absence-hit fuel) ==
+  tuff     gated    deep cands= 565378 on bare deepslate/stone=     3 (0.00%)
+  tuff     ungated  deep cands= 565378 on bare deepslate/stone=     3 (0.00%)
+  redstone gated    deep cands=  17450 on bare deepslate/stone=     0 (0.00%)
+  redstone ungated  deep cands=  17450 on bare deepslate/stone=     0 (0.00%)
+  lapis    gated    deep cands=   6667 on bare deepslate/stone=   136 (2.04%)
+  lapis    ungated  deep cands=   6631 on bare deepslate/stone=   154 (2.32%)
+  granite  gated    deep cands=  18257 on bare deepslate/stone=    30 (0.16%)
+  granite  ungated  deep cands=  18226 on bare deepslate/stone=     0 (0.00%)
+  gravel   gated    deep cands= 117309 on bare deepslate/stone=  3716 (3.17%)
+  copper   gated    deep cands=   2258 on bare deepslate/stone=   215 (9.52%)
+  copper   ungated  deep cands=   2329 on bare deepslate/stone=  1231 (52.86%)
+  iron     gated    deep cands=   9850 on bare deepslate/stone=   167 (1.70%)
+  iron     ungated  deep cands=   9894 on bare deepslate/stone=   572 (5.78%)
+== what real block sits on interp-vein-predicted cells that are not that block (deep, buried) ==
+  tuff: [('air', 205), ('clay', 127), ('gravel', 50), ('water', 13), ('smooth_basalt', 12), ('deepslate_redstone_ore', 11), ('calcite', 10), ('lava', 6)]
+  iron: [('air', 31), ('smooth_basalt', 4), ('calcite', 3), ('cave_vines', 1), ('water', 1)]
+  direct tuff: [('deepslate', 337), ('air', 196), ('clay', 128), ('gravel', 49), ('water', 15), ('smooth_basalt', 13)]
+  direct iron: [('deepslate', 65), ('air', 32), ('clay', 5), ('calcite', 3), ('smooth_basalt', 3), ('tuff', 2)]

@@ -62,8 +62,10 @@ usable for matching.
 | Family | How it's generated | Why |
 |---|---|---|
 | tuff, redstone, lapis, granite | GPU, bit-exact | Discard-free, and need no surface gate |
-| gravel, copper | CPU refine via `region_dump.exe` | Their high Y ranges hit cubiomes' `mapApproxHeight` surface gate, which isn't ported |
+| gravel, copper | CPU refine via `region_dump.exe` | Their high Y ranges hit cubiomes' `mapApproxHeight` surface gate (see below) |
 | iron | CPU refine via `region_dump.exe` | Discard-free ore features, plus iron ore veins (`harness/ore_veins.h`) |
+| diamond (buried only) | CPU refine via `region_dump.exe` | Discard 1.0 rolls no RNG, so it's exact. Diamonds from the other diamond configs aren't credited |
+| gold, coal, other diamond | Excluded | Air-exposure discard (see 2 above) |
 
 **Surface gate.** Gravel and copper veins are only placed if the terrain reaches their start height.
 cubiomes approximates that terrain, and when it misjudges a vein every later vein of that config in the
@@ -77,8 +79,6 @@ position-only noise, before ore features run. `region_dump +veins` models them w
 interpolation, and refine adds their tuff and iron to the candidates. The GPU pass doesn't generate them,
 so in pass 1 vein tuff is a presence miss, absorbed by `--minfrac`. On a real room crossing a vein this took
 the true location from 190/269 to 243/269 cells (margin 115 → 183, `examples/real_vein_room.csv`).
-| diamond (buried only) | CPU refine via `region_dump.exe` | Discard 1.0 rolls no RNG, so it's exact. Diamonds from the other diamond configs aren't credited |
-| gold, coal, other diamond | Excluded | Air-exposure discard (see 2 above) |
 
 ## Validation
 
@@ -101,9 +101,8 @@ diff port.csv ref.csv   # only gravel/copper lines
 Both rooms rank first with no absence hits. With only the four GPU families, the margin stays roughly
 flat as the region grows 31×.
 
-**Regression.** Use `examples/obs_big_room.csv` over chunks -32..31. The expected result is
-633/633 at (-6, -52, -6), margin 452. With `--no-refine` the ranking must be byte-identical to
-`--legacy-gen`.
+**Regression.** `tests/regress.sh` runs every example and diffs against `tests/expected/`. With
+`--no-refine` the ranking must be byte-identical to `--legacy-gen`.
 
 ## Performance
 
