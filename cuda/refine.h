@@ -51,8 +51,26 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
                   [&](int family, int x, int y, int z) { candidates[family].insert(blockKey(x, y, z)); });
 }
 
-static Result rescore(const Result& r, const Observation& obs, const BlockSet* candidates,
-                      const Options& opt) {
+static bool anyOreAt(const BlockSet* candidates, int x, int y, int z) {
+    for (int family = 0; family < F_COUNT; family++)
+        if (candidates[family].count(blockKey(x, y, z)))
+            return true;
+    return false;
+}
+
+// Absence with tolerance is an erosion: a bare cell only counts against a hypothesis if ore is predicted
+// at every position within +-tolerance, so a misread bare cell next to ore doesn't (docs/research-log.md P8).
+static bool oreThroughout(const BlockSet* candidates, int x, int y, int z, int tolerance) {
+    for (int dx = -tolerance; dx <= tolerance; dx++)
+        for (int dy = -tolerance; dy <= tolerance; dy++)
+            for (int dz = -tolerance; dz <= tolerance; dz++)
+                if (!anyOreAt(candidates, x + dx, y + dy, z + dz))
+                    return false;
+    return true;
+}
+
+static Result scoreHypothesis(const Result& r, const Observation& obs, const BlockSet* candidates,
+                              const Options& opt) {
     Result out = r;
     out.present = 0;
     for (const ObsCell& c : obs.ore) {
@@ -66,15 +84,31 @@ static Result rescore(const Result& r, const Observation& obs, const BlockSet* c
     for (const ObsCell& c : obs.bare) {
         int dx, dz;
         orientXZ(c.x, c.z, r.rotation, r.mirror, &dx, &dz);
-        for (int family = 0; family < F_COUNT; family++)
-            if (containsNear(candidates[family], r.originX + dx, r.originY + c.y, r.originZ + dz,
-                             opt.absenceTolerance)) {
-                out.absenceHits++;
-                break;
-            }
+        if (oreThroughout(candidates, r.originX + dx, r.originY + c.y, r.originZ + dz, opt.absenceTolerance))
+            out.absenceHits++;
     }
     out.score = out.present - opt.absenceWeight * out.absenceHits;
     return out;
+}
+
+// With --error e the anchor cell is itself off by up to e, so the hypothesis' origin is too. Re-scoring
+// every origin within +-e (same orientation) and keeping the best recovers the exact origin.
+static Result rescore(const Result& r, const Observation& obs, const BlockSet* candidates,
+                      const Options& opt) {
+    Result best = scoreHypothesis(r, obs, candidates, opt);
+    int e = opt.tolerance;
+    for (int dx = -e; dx <= e; dx++)
+        for (int dy = -e; dy <= e; dy++)
+            for (int dz = -e; dz <= e; dz++) {
+                Result shifted = r;
+                shifted.originX += dx;
+                shifted.originY += dy;
+                shifted.originZ += dz;
+                Result scored = scoreHypothesis(shifted, obs, candidates, opt);
+                if (rankedBefore(scored, best))
+                    best = scored;
+            }
+    return best;
 }
 
 // Re-scores the leading hypotheses of `top` (sorted best first) and returns them sorted best first. Also
@@ -114,7 +148,13 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
         refined[t] = rescore(r, obs, candidates, opt);
     }
     std::sort(refined.begin(), refined.end(), rankedBefore);
-    return refined;
+    // Re-centring can move two hypotheses onto (nearly) the same origin; keep the better one.
+    std::vector<Result> distinct;
+    for (const Result& r : refined)
+        if (std::none_of(distinct.begin(), distinct.end(),
+                         [&](const Result& d) { return chebyshev(d, r) <= 2 * opt.tolerance + 1; }))
+            distinct.push_back(r);
+    return distinct;
 }
 
 #endif

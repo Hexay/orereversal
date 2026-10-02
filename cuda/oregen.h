@@ -211,8 +211,9 @@ ORE_HD static inline void generateVeinPart(const OreConfig* c, Xoroshiro* rng, c
     }
 }
 
-// All candidate blocks of one ore config in one chunk. Skips cubiomes' surface-height gate, which
-// never rejects a deepslate-band vein (that is why gravel and copper aren't generated this way).
+// All candidate blocks of one ore config in one chunk. Skips cubiomes' surface-height gate: exact for tuff
+// and redstone; in low terrain a gated high lapis vein shifts later lapis veins (gravel and copper are hit
+// far harder, so they come from region_dump instead). See docs/research-log.md P8.
 ORE_HD static inline void generateOreConfig(uint64_t worldSeed, const OreConfig* c, int era, int chunkX,
                                             int chunkZ, CandidateSink* sink) {
     Xoroshiro rng = oreConfigRng(worldSeed, c, era, chunkX, chunkZ);

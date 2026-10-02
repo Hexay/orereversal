@@ -170,7 +170,7 @@ lapis and copper, so results for a 1.20+ world are wrong without it.
 |---|---|---|
 | `--version V` | `1.18` | Minecraft version of the world, e.g. `1.20.4` or `1.21`. 1.18 and 1.19 share configs, as do 1.20 and later. |
 | `--error E` | `0` | Positional tolerance for ore cells, in blocks. Use 1–2 for positions read from images or video. |
-| `--abs-error A` | `0` | Positional tolerance for `bare` cells. Leave it at 0 unless the bare cells are misread too, because widening them next to dense tuff floods the absence score. |
+| `--abs-error A` | `0` | Tolerance for `bare` cells: one only counts against a location if ore is predicted at every position within ±A. Use it when bare positions are misread too. |
 | `--absw W` | `1.0` | Weight of each absence hit (ore predicted on a `bare` cell). |
 | `--minfrac F` | `0.5` | Presence pre-filter: the fraction of GPU-family ore a hypothesis must hit to survive pass 1. |
 | `--tile T` | `256` | Tile size in chunks. Values above 320 risk a Windows TDR reset, so they're clamped. |

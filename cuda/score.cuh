@@ -10,7 +10,7 @@ struct ScoringInput {
     int bareCount;
     int anchorX, anchorY, anchorZ; // the observation cell each anchor candidate is aligned to
     int tolerance;                 // ore cells match within +-tolerance
-    int absenceTolerance;          // bare cells count as hits within +-absenceTolerance
+    int absenceTolerance;          // bare cells only count if ore is predicted throughout +-absenceTolerance
     float absenceWeight;
     int minPresence; // hypotheses below this are dropped
 };
@@ -38,6 +38,24 @@ __device__ __forceinline__ bool occupiedNear(const OccupancyGrid& grid, int fami
                 if (occupied(grid, family, x + dx, y + dy, z + dz))
                     return true;
     return false;
+}
+
+__device__ __forceinline__ bool anyOreAt(const OccupancyGrid& grid, int x, int y, int z) {
+    for (int family = 0; family < GPU_FAMILY_COUNT; family++)
+        if (occupied(grid, family, x, y, z))
+            return true;
+    return false;
+}
+
+// Absence with tolerance is an erosion: a bare cell is only a hit if ore is predicted at every position
+// within +-tolerance (see refine.h oreThroughout).
+__device__ __forceinline__ bool oreThroughout(const OccupancyGrid& grid, int x, int y, int z, int tolerance) {
+    for (int dx = -tolerance; dx <= tolerance; dx++)
+        for (int dy = -tolerance; dy <= tolerance; dy++)
+            for (int dz = -tolerance; dz <= tolerance; dz++)
+                if (!anyOreAt(grid, x + dx, y + dy, z + dz))
+                    return false;
+    return true;
 }
 
 // Spread the low 16 bits of n to the even bit positions.
@@ -89,12 +107,8 @@ __global__ void kScoreHypotheses(const int3* anchors, int anchorCount, Occupancy
     for (int i = 0; i < in.bareCount; i++) {
         int dx, dz;
         orientXZ(in.bare[i].x, in.bare[i].z, rotation, mirror, &dx, &dz);
-        int x = originX + dx, y = originY + in.bare[i].y, z = originZ + dz;
-        for (int family = 0; family < GPU_FAMILY_COUNT; family++)
-            if (occupiedNear(grid, family, x, y, z, in.absenceTolerance)) {
-                absenceHits++;
-                break;
-            }
+        if (oreThroughout(grid, originX + dx, originY + in.bare[i].y, originZ + dz, in.absenceTolerance))
+            absenceHits++;
     }
 
     int slot = atomicAdd(out.count, 1);

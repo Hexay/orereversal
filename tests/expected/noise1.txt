@@ -5,12 +5,12 @@ scanned 1 tiles | 62495 anchor candidates | 630 survivors (minfrac pre-filter) |
 (refined top 64 with all 7 families incl. gravel/copper/iron)
 rank           world_origin        chunk  orient    present     absH     final
    1          (-6, -52, -6)     (-1, -1)    r0m1 633/633        0     633.0
-   2       (-109, -48, 146)      (-7, 9)    r1m-1 280/633      170     110.0
-   3        (482, -35, 336)     (30, 21)    r3m1 267/633      160     107.0
-   4         (133, -15, 41)       (8, 2)    r3m1 271/633      207      64.0
-   5       (-455, -43, 236)    (-29, 14)    r2m1 317/633      262      55.0
-   6         (453, -33, 10)      (28, 0)    r2m-1 268/633      220      48.0
-   7         (115, -26, 35)       (7, 2)    r1m1 283/633      266      17.0
-   8        (51, -53, -341)     (3, -22)    r1m-1 278/633      272       6.0
+   2        (482, -36, 336)     (30, 21)    r3m1 267/633      148     119.0
+   3       (-110, -49, 146)      (-7, 9)    r1m-1 314/633      197     117.0
+   4         (454, -32, 11)      (28, 0)    r2m-1 274/633      178      96.0
+   5         (133, -15, 40)       (8, 2)    r3m1 281/633      199      82.0
+   6       (-456, -43, 235)    (-29, 14)    r2m1 305/633      226      79.0
+   7         (114, -26, 36)       (7, 2)    r1m1 295/633      258      37.0
+   8        (50, -54, -340)     (3, -22)    r1m-1 288/633      258      30.0
 
-top_final=633.0 margin=523.0 (vs best surviving hypothesis >35 blocks away) => CONFIDENT (unique)
+top_final=633.0 margin=514.0 (vs best surviving hypothesis >35 blocks away) => CONFIDENT (unique)

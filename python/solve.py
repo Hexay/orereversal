@@ -6,8 +6,9 @@ The same two-stage algorithm as the GPU matcher in cuda/, over a small region ar
      of the candidates, so the true location always has the top presence score and is never pruned.
   2. Soft absence. The best hypotheses lose a point (times the weight) for every bare cell where the seed
      predicts ore.
-Tolerances dilate the candidate sets by twice the given error, because the anchor cell is itself
-uncertain by that much.
+With --error e, ore cells match candidates within +-e, and the best hypotheses are re-centred: every
+origin within +-e is re-scored, because the anchor cell (and so the origin) is itself off by up to e.
+With --abs-error A, a bare cell only counts against a hypothesis if ore is predicted throughout +-A.
 """
 
 import argparse
@@ -44,6 +45,18 @@ def dilate(points, radius):
     }
 
 
+def erode(points, radius):
+    """The points whose whole +-radius neighbourhood is in `points`."""
+    if radius == 0:
+        return set(points)
+    offsets = range(-radius, radius + 1)
+    return {
+        (x, y, z)
+        for x, y, z in points
+        if all((x + dx, y + dy, z + dz) in points for dx in offsets for dy in offsets for dz in offsets)
+    }
+
+
 def placed(cell, origin, rotation, mirror):
     dx, dz = orient_xz(cell.x, cell.z, rotation, mirror)
     return (origin[0] + dx, origin[1] + cell.y, origin[2] + dz)
@@ -65,8 +78,24 @@ def solve(candidates, ore, bare, tolerance, absence_weight=1.0, absence_toleranc
     """Returns (best hypotheses, anchor family, hypothesis count)."""
     observed = {c.family for c in ore}
     scored_families = [f for f in candidates if f in observed or f in C.USABLE]
-    present_sets = {f: dilate(candidates[f], 2 * tolerance) for f in scored_families}
-    any_ore = set().union(*(dilate(candidates[f], 2 * absence_tolerance) for f in scored_families))
+    present_sets = {f: dilate(candidates[f], tolerance) for f in scored_families}
+    absent_set = erode(set().union(*(candidates[f] for f in scored_families)), absence_tolerance)
+
+    def hypothesis_at(origin, rotation, mirror, present=None):
+        if present is None:
+            present = count_present(ore, origin, rotation, mirror, present_sets)
+        hits = count_absence_hits(bare, origin, rotation, mirror, absent_set) if bare else 0
+        return Hypothesis(origin, present, hits, present - absence_weight * hits, rotation, mirror)
+
+    def recentred(h):
+        shifts = range(-tolerance, tolerance + 1)
+        nearby = [
+            hypothesis_at((h.origin[0] + dx, h.origin[1] + dy, h.origin[2] + dz), h.rotation, h.mirror)
+            for dx in shifts
+            for dy in shifts
+            for dz in shifts
+        ]
+        return min(nearby, key=lambda n: (-n.score, n.origin))
 
     anchor_families = [f for f in sorted(observed) if candidates.get(f)]  # sorted: deterministic ties
     if not anchor_families:
@@ -88,12 +117,7 @@ def solve(candidates, ore, bare, tolerance, absence_weight=1.0, absence_toleranc
     survivors = sorted(best_by_origin.items(), key=lambda item: -item[1][0])[:keep]
 
     # Stage 2: soft absence on the survivors, then keep one hypothesis per neighbourhood.
-    hypotheses = []
-    for origin, (present, rotation, mirror) in survivors:
-        hits = count_absence_hits(bare, origin, rotation, mirror, any_ore) if bare else 0
-        hypotheses.append(
-            Hypothesis(origin, present, hits, present - absence_weight * hits, rotation, mirror)
-        )
+    hypotheses = [hypothesis_at(origin, r, m, present) for origin, (present, r, m) in survivors]
     hypotheses.sort(key=lambda h: -h.score)
     best = []
     for h in hypotheses:
@@ -101,6 +125,12 @@ def solve(candidates, ore, bare, tolerance, absence_weight=1.0, absence_toleranc
             best.append(h)
         if len(best) >= top_n:
             break
+    if tolerance:
+        recentred_best = sorted({recentred(h) for h in best}, key=lambda h: (-h.score, h.origin))
+        best = []
+        for h in recentred_best:  # re-centring can move two hypotheses onto the same spot
+            if all(chebyshev(h.origin, kept.origin) > 2 * tolerance + 1 for kept in best):
+                best.append(h)
     # Make sure the best genuinely different location is listed, for the margin (see print_report).
     separation = verdict_separation(ore, bare, tolerance)
     competitor = next(

@@ -16,7 +16,7 @@ struct Options {
     const char* version = "1.18"; // Minecraft version of the world, e.g. 1.20.4
     int era = ERA_1_18;           // derived from version
     int tolerance = 0;            // --error
-    int absenceTolerance = 0;     // --abs-error, see docs/research-log.md P7
+    int absenceTolerance = 0;     // --abs-error, see docs/research-log.md P7/P8
     float absenceWeight = 1.0f;
     float minPresenceFraction = 0.5f;
     int tileSize = 256; // chunks per tile side
@@ -31,7 +31,7 @@ static const char* USAGE =
     "usage: %s <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [options]\n"
     "  --version V     Minecraft version of the world, 1.18 or later (default 1.18)\n"
     "  --error E       ore-cell position tolerance in blocks (default 0)\n"
-    "  --abs-error A   bare-cell position tolerance in blocks (default 0)\n"
+    "  --abs-error A   bare cells only count if ore is predicted throughout +-A blocks (default 0)\n"
     "  --absw W        weight of each absence hit (default 1.0)\n"
     "  --minfrac F     presence a hypothesis needs to survive pass 1, as a fraction (default 0.5)\n"
     "  --tile T        tile size in chunks, at most 320 (default 256)\n"

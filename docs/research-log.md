@@ -702,6 +702,34 @@ DECISION: absence tolerance is its own knob, `--abs-error A` (GPU: +-A Chebyshev
 presence convention), default 0. Caveat: the synthetic test favors exact absence because bare cells are
 exact; if bare cells are misread too, pass --abs-error and expect a shortlist.
 OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy anchor), the GPU +-e.
+(Closed in P8.)
+
+## P8 — accuracy pass (2026-10-01/02). Details: research/*.md (untracked agent reports).
+- TILE-MARGIN RECALL BUG (fixed): the GPU tile margin was maxExtent/16+2 chunks but hypotheses probe up to
+  2*maxExtent from the anchor for centred observations. Worst-case anchor near a tile edge kept 1144/1497
+  GPU cells. Margin now = ceil(anchorReach/16)+1 chunks -> 1497/1497 at every tile size.
+- 1.20+ (fixed): ore_diamond_medium shifted the decorator index of lapis/buried lapis/copper by +1; the port
+  hardcoded 1.18, so 1.20+ lapis was uncorrelated (3831/3835 blocks missing). --version selects the index.
+- MARGIN METRIC (fixed): rank 2 was usually the winner shifted 2 blocks (dedup is only 2e+1). The verdict
+  now uses the best result > max(2e+1, footprint) away. Example room: GPU 452 -> 968, solve.py -> 557. The
+  GPU only sees --minfrac survivors, so its number is vs the best survivor.
+- RE-CENTRING + TOLERANCE (done): with --error e, refine re-scores every origin within +-e (same orientation)
+  and keeps the best; solve.py presence dilates by e, not 2e (2e halved the margin: dense tuff matches
+  anywhere). +-2 jitter: exact origin, margin 366 (64^2 ch) / 299 (256^2), was off by (-1,-1,-2) and
+  shortlist. +-1: unchanged winner, 523 -> 514.
+- EROSION (done): --abs-error A now counts a bare cell only if ore is predicted throughout +-A (dilation
+  flooded absence). noise1 --abs-error 1: -107 shortlist -> exact, margin 337 CONFIDENT. With bare cells
+  also jittered +-2 the agent measured erosion 254 (5/5 exact origin) vs dilation 121 (0/5).
+- NEGATIVE: dropping gravel/copper/iron from refine's absence (they "ghost" on real stone 2-10%) LOWERED
+  margins (452->416, real room 459->394) and never helped: the true location had 0 absence hits in every
+  test room. Reverted. Revisit only with an explored real room where gravel has fallen.
+- DECIDED AGAINST (for now): GPU port of cubiomes' approximate surface gate. Measured against the REAL world
+  the ungated port is barely worse for lapis (88 vs 50 misses of 5837 deep blocks) and BETTER for lower
+  granite (0 vs 30 ghosts: cubiomes' approximation wrongly gates 5/909 veins). ~300 LOC of FP64 noise for
+  ~0.6pp lapis. Cheaper if ever needed: try both gate outcomes at refine for borderline veins.
+- OPEN, ranked: interpolated ore-vein model for tuff/iron (explains 3547/3550 deep tuff misses, 761/989
+  iron misses; position-only, no desync risk); buried diamond (discard 1.0, exact) as a one-sided family;
+  lower diorite/andesite (identical to lower granite); rarity weighting (+7%, keep iron capped).
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU
