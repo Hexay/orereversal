@@ -10,4 +10,8 @@ echo === building matcher (device) ===
 nvcc -O2 -std=c++17 -arch=sm_89 -Xcompiler /openmp -Xptxas -v matcher.cu -o matcher.exe
 set MT=%ERRORLEVEL%
 echo matcher_exit=%MT%
-if not "%OT%%MT%"=="00" exit /b 1
+echo === building veintest (device) ===
+nvcc -O2 -std=c++17 -arch=sm_89 veintest.cu -o veintest.exe >nul
+set VT=%ERRORLEVEL%
+echo veintest_exit=%VT%
+if not "%OT%%MT%%VT%"=="000" exit /b 1

@@ -12,6 +12,7 @@
 # Linux binaries (no extension)
 /cuda/matcher
 /cuda/oretest
+/cuda/veintest
 /harness/region_dump
 /harness/ore_dump
 

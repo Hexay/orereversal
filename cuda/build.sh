@@ -9,3 +9,5 @@ gcc -O2 -ffp-contract=off oretest.c -lm -o oretest
 echo "built cuda/oretest"
 nvcc -O2 -std=c++17 -arch="$ARCH" -Xcompiler -fopenmp -lgomp matcher.cu -o matcher
 echo "built cuda/matcher (arch=$ARCH)"
+nvcc -O2 -std=c++17 -arch="$ARCH" veintest.cu -o veintest
+echo "built cuda/veintest"

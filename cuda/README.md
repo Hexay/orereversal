@@ -18,6 +18,7 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
 | `perlin.h` | 1.18+ double-Perlin noise (cubiomes `noise.c`), plus an FP32 approximation for screening. |
 | `iron_veins.h` | Iron-vein tuff (the deepslate-band part of `harness/ore_veins.h`) and its FP32 screens. |
 | `oretest.c` | Prints `oregen.h`'s output (and with `+veins`, iron-vein tuff) in `harness/region_dump` format, for the bit-exact diff. |
+| `veintest.cu` | Runs `kIronVeins` on the GPU and prints its tuff the same way, since device code may be contracted differently from the host build. |
 | **Matcher** | |
 | `matcher.cu` | `main()`: parse options, load the observation, run pass 1, refine, report. |
 | `options.h` | Command-line options and usage text. |
@@ -31,7 +32,7 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
 | `region_dump.h` | Locating and running `harness/region_dump`. |
 | `report.h` | Console output. |
 | `common.h` | `ObsCell`, `Result`, the 8 orientations, `CUDA_CHECK`. |
-| `build.sh` / `rebuild.bat` | Build `oretest` and `matcher` on Linux / Windows. The host driver is compiled without FMA contraction (`-ffp-contract=off` / `/fp:strict`) so it stays bit-exact. |
+| `build.sh` / `rebuild.bat` | Build `oretest`, `matcher` and `veintest` on Linux / Windows. The host driver is compiled without FMA contraction (`-ffp-contract=off` / `/fp:strict`) so it stays bit-exact. |
 
 ## Pipeline
 
@@ -106,7 +107,8 @@ zero position diffs. Only gravel and copper differ, because they need the surfac
 diff port.csv ref.csv   # only gravel/copper lines
 ```
 
-`tests/regress.sh` also diffs `oretest +veins` against `region_dump +veins` (tuff lines, must be identical).
+`tests/regress.sh` also diffs iron-vein tuff against `region_dump +veins`, both from the host build
+(`oretest +veins`) and from the GPU kernel itself (`veintest`, 4096 chunks); both must be identical.
 
 **End to end against a real 1.18.2 world (seed 123).**
 

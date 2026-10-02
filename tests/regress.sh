@@ -34,7 +34,8 @@ fi
 MATCHER=cuda/matcher$EXE
 ORETEST=cuda/oretest$EXE
 REGION_DUMP=harness/region_dump$EXE
-for bin in "$MATCHER" "$ORETEST" "$REGION_DUMP"; do
+VEINTEST=cuda/veintest$EXE
+for bin in "$MATCHER" "$ORETEST" "$REGION_DUMP" "$VEINTEST"; do
   [ -x "$bin" ] || { echo "$bin not found: build first (bash tests/regress.sh --build)"; exit 1; }
 done
 if command -v py >/dev/null 2>&1; then PY="py -3"; else PY=python3; fi
@@ -95,6 +96,14 @@ vein_diff() {   # iron-vein tuff (iron_veins.h) vs harness/ore_veins.h: must be 
   echo "tuff blocks: $(wc -l < "$TMP/ref.csv"), differing: $(diff "$TMP/port.csv" "$TMP/ref.csv" | grep -c '^[<>]')"
 }
 vein_diff | check vein_diff vein_diff
+
+vein_diff_gpu() {   # the same, but from kIronVeins on the device (vein tuff only, compared as sets)
+  $VEINTEST 123 -32 31 -32 31 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort -u > "$TMP/port.csv"
+  $REGION_DUMP 123 1.18 -32 31 -32 31 -64 -1 diamond +veins 2>/dev/null | tr -d '\r' | grep '^tuff,' \
+    | LC_ALL=C sort -u > "$TMP/ref.csv"
+  echo "tuff blocks: $(wc -l < "$TMP/ref.csv"), differing: $(diff "$TMP/port.csv" "$TMP/ref.csv" | grep -c '^[<>]')"
+}
+vein_diff_gpu | check vein_diff_gpu vein_diff_gpu
 
 if [ $WITH_PY = 1 ]; then
   $PY python/solve.py $ROOM 2>&1 | check solve_py solve_py
