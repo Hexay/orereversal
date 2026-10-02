@@ -45,14 +45,16 @@ int main(int argc, char** argv) {
            stats.msGenerate, stats.msSetup, stats.msGenerate - stats.msSetup, stats.msScore,
            stats.msScore > 0 ? stats.msGenerate / stats.msScore : 0);
 
+    int separation = std::max(2 * opt.tolerance + 1, obs.footprint); // see printRanking
     if (!opt.refine) {
-        printRanking("(GPU families only: tuff/redstone/lapis/granite)", top, obs.gpuOreCount, "CONFIDENT");
+        printRanking("(GPU families only: tuff/redstone/lapis/granite)", top, obs.gpuOreCount, separation,
+                     "CONFIDENT");
         return 0;
     }
-    std::vector<Result> refined = refine(top, obs, opt);
+    std::vector<Result> refined = refine(top, obs, opt, separation);
     char title[96];
     snprintf(title, sizeof(title), "(refined top %d with all 7 families incl. gravel/copper/iron)",
              (int)std::min((size_t)opt.refineCount, top.size()));
-    printRanking(title, refined, (int)obs.ore.size(), "CONFIDENT (unique)");
+    printRanking(title, refined, (int)obs.ore.size(), separation, "CONFIDENT (unique)");
     return 0;
 }

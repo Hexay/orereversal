@@ -13,4 +13,4 @@ rank           world_origin        chunk  orient    present     absH     final
    7         (133, -15, 41)       (8, 2)    r3m1 271/633      763    -492.0
    8        (51, -53, -341)     (3, -22)    r1m-1 278/633      773    -495.0
 
-top_final=-107.0 margin=176.0 => shortlist
+top_final=-107.0 margin=176.0 (vs best surviving hypothesis >35 blocks away) => shortlist

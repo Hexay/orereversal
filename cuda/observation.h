@@ -18,6 +18,7 @@ struct Observation {
     ObsCell anchorCell;
     int maxExtent = 1;   // largest |x| or |z| of any cell
     int anchorReach = 0; // largest x/z (Chebyshev) distance from anchorCell to any cell, in any orientation
+    int footprint = 0;   // horizontal size: max(x span, z span) over all cells
 };
 
 // Returns false (after printing why) if the file can't be read or has no GPU-family ore.
@@ -67,12 +68,18 @@ static bool loadObservation(const char* path, Observation& obs) {
             obs.anchorCell = c;
             break;
         }
+    int minX = obs.anchorCell.x, maxX = minX, minZ = obs.anchorCell.z, maxZ = minZ;
     for (const std::vector<ObsCell>* cells : {&obs.ore, &obs.bare})
         for (const ObsCell& c : *cells) {
             obs.maxExtent = std::max(obs.maxExtent, std::max(abs(c.x), abs(c.z)));
             obs.anchorReach =
                 std::max(obs.anchorReach, std::max(abs(c.x - obs.anchorCell.x), abs(c.z - obs.anchorCell.z)));
+            minX = std::min(minX, c.x);
+            maxX = std::max(maxX, c.x);
+            minZ = std::min(minZ, c.z);
+            maxZ = std::max(maxZ, c.z);
         }
+    obs.footprint = std::max(maxX - minX, maxZ - minZ);
     return true;
 }
 

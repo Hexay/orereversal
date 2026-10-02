@@ -101,7 +101,21 @@ def solve(candidates, ore, bare, tolerance, absence_weight=1.0, absence_toleranc
             best.append(h)
         if len(best) >= top_n:
             break
+    # Make sure the best genuinely different location is listed, for the margin (see print_report).
+    separation = verdict_separation(ore, bare, tolerance)
+    competitor = next(
+        (h for h in hypotheses if best and chebyshev(h.origin, best[0].origin) > separation), None
+    )
+    if competitor and competitor not in best:
+        best.append(competitor)
     return best, anchor_family, hypothesis_count
+
+
+def verdict_separation(ore, bare, tolerance):
+    """Results closer than this to the winner are shifted copies of it: the observation's horizontal size."""
+    xs = [c.x for c in ore + bare]
+    zs = [c.z for c in ore + bare]
+    return max(2 * tolerance + 1, max(xs) - min(xs), max(zs) - min(zs))
 
 
 def print_report(args, ore, bare, results, anchor_family, hypothesis_count):
@@ -123,10 +137,17 @@ def print_report(args, ore, bare, results, anchor_family, hypothesis_count):
             f"{rank:>4} {str(h.origin):>20} {str(chunk):>11} {orient:>7} {h.present}/{len(ore)} "
             f"{h.absence_hits:>8} {h.score:>9.1f}"
         )
-    top = results[0].score
-    second = results[1].score if len(results) > 1 else 0
-    verdict = "CONFIDENT (unique)" if top - second >= max(3, 0.3 * len(ore)) else "shortlist"
-    print(f"\ntop_final={top:.1f}  margin_to_next={top - second:.1f}  => {verdict}")
+    separation = verdict_separation(ore, bare, args.error)
+    top = results[0]
+    competitor = next((h for h in results if chebyshev(h.origin, top.origin) > separation), None)
+    if competitor is None:
+        print(f"\ntop_final={top.score:.1f}  margin=n/a (nothing scored more than {separation} blocks away)")
+        return
+    margin = top.score - competitor.score
+    verdict = "CONFIDENT (unique)" if margin >= max(3, 0.3 * len(ore)) else "shortlist"
+    print(
+        f"\ntop_final={top.score:.1f}  margin={margin:.1f} (vs best >{separation} blocks away)  => {verdict}"
+    )
 
 
 def main():

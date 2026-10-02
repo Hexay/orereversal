@@ -9,6 +9,7 @@
 #include "observation.h"
 #include "options.h"
 #include "region_dump.h"
+#include "top_k.h"
 
 typedef std::unordered_set<uint64_t> BlockSet;
 
@@ -76,11 +77,13 @@ static Result rescore(const Result& r, const Observation& obs, const BlockSet* c
     return out;
 }
 
-// Re-scores the leading hypotheses of `top` (sorted best first) and returns them sorted best first.
-static std::vector<Result> refine(const std::vector<Result>& top, const Observation& obs,
-                                  const Options& opt) {
+// Re-scores the leading hypotheses of `top` (sorted best first) and returns them sorted best first. Also
+// re-scores the best hypothesis more than `separation` blocks from the leader, so the report always has a
+// genuine competitor to measure the margin against.
+static std::vector<Result> refine(const std::vector<Result>& top, const Observation& obs, const Options& opt,
+                                  int separation) {
     // The refine-only families can add at most this much to any hypothesis, so hypotheses further than
-    // this below the best can't overtake it. Always refine at least 8 so a margin can be shown.
+    // this below the best can't overtake it. Always refine at least 8.
     int maxGain = obs.familyCounts[F_GRAVEL] + obs.familyCounts[F_COPPER] + obs.familyCounts[F_IRON];
     int count = std::min((int)top.size(), opt.refineCount);
     float best = top.empty() ? 0 : top[0].score;
@@ -89,12 +92,20 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
             count = t;
             break;
         }
+    std::vector<Result> chosen(top.begin(), top.begin() + count);
+    for (const Result& r : top)
+        if (!top.empty() && chebyshev(r, top[0]) > separation) {
+            if (std::none_of(chosen.begin(), chosen.end(),
+                             [&](const Result& c) { return chebyshev(c, r) == 0; }))
+                chosen.push_back(r);
+            break;
+        }
 
     int margin = marginChunks(obs);
-    std::vector<Result> refined(count);
+    std::vector<Result> refined(chosen.size());
 #pragma omp parallel for schedule(dynamic)
-    for (int t = 0; t < count; t++) {
-        const Result& r = top[t];
+    for (int t = 0; t < (int)chosen.size(); t++) {
+        const Result& r = chosen[t];
         BlockSet candidates[F_COUNT];
         generateAllFamilies(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
                             ((r.originX + obs.maxExtent) >> 4) + margin,

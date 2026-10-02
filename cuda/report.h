@@ -7,6 +7,7 @@
 #include "common.h"
 #include "observation.h"
 #include "options.h"
+#include "top_k.h"
 
 static void printObservationSummary(const Options& opt, const Observation& obs) {
     long long chunks = (long long)(opt.chunkMaxX - opt.chunkMinX + 1) * (opt.chunkMaxZ - opt.chunkMinZ + 1);
@@ -32,9 +33,10 @@ static void printGenerationGating(const std::vector<int>& configIds, bool allFam
     printf("]%s\n", allFamilies ? " (all GPU families: bare-absence)" : " (rare-gated)");
 }
 
-// Up to 10 ranked hypotheses, then the margin between the best two. CONFIDENT means that margin is at
-// least max(3, 0.3 * oreTotal).
-static void printRanking(const char* title, const std::vector<Result>& results, int oreTotal,
+// Up to 10 ranked hypotheses, then the margin between the best one and the best one more than
+// `separation` blocks from it: a copy of the winner shifted by a few blocks is the same place, not a
+// competing location. CONFIDENT means that margin is at least max(3, 0.3 * oreTotal).
+static void printRanking(const char* title, const std::vector<Result>& results, int oreTotal, int separation,
                          const char* confidentLabel) {
     printf("\n%s\n", title);
     printf("%4s %22s %12s %7s %10s %8s %9s\n", "rank", "world_origin", "chunk", "orient", "present", "absH",
@@ -47,11 +49,24 @@ static void printRanking(const char* title, const std::vector<Result>& results, 
         printf("%4zu %22s %12s    r%dm%d %d/%d %8d %9.1f\n", i + 1, origin, chunk, r.rotation, r.mirror,
                r.present, oreTotal, r.absenceHits, r.score);
     }
-    if (results.size() >= 2) {
-        float margin = results[0].score - results[1].score;
-        printf("\ntop_final=%.1f margin=%.1f => %s\n", results[0].score, margin,
-               (margin >= std::max(3.0, 0.3 * oreTotal)) ? confidentLabel : "shortlist");
+    if (results.empty())
+        return;
+    const Result* competitor = nullptr;
+    for (const Result& r : results)
+        if (chebyshev(r, results[0]) > separation) {
+            competitor = &r; // results are best first
+            break;
+        }
+    if (!competitor) {
+        printf("\ntop_final=%.1f margin=n/a (no other surviving hypothesis >%d blocks away)\n",
+               results[0].score, separation);
+        return;
     }
+    // Pass 1 drops hypotheses below --minfrac presence, so the competitor is the best *survivor*.
+    float margin = results[0].score - competitor->score;
+    printf("\ntop_final=%.1f margin=%.1f (vs best surviving hypothesis >%d blocks away) => %s\n",
+           results[0].score, margin, separation,
+           (margin >= std::max(3.0, 0.3 * oreTotal)) ? confidentLabel : "shortlist");
 }
 
 #endif

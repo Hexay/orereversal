@@ -5,3 +5,5 @@ scanned 1 tiles | 62495 anchor candidates | 1 survivors (minfrac pre-filter) | t
 (refined top 1 with all 7 families incl. gravel/copper/iron)
 rank           world_origin        chunk  orient    present     absH     final
    1          (-6, -52, -6)     (-1, -1)    r0m1 24/24        0      24.0
+
+top_final=24.0 margin=n/a (no other surviving hypothesis >32 blocks away)

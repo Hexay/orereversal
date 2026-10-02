@@ -211,8 +211,11 @@ Labeling caves as `bare` penalizes the true location. The full rules are in
 | `absH` | `bare` cells where the seed predicts ore (absence hits) |
 | `final` | `present − absw × absH` |
 
-`margin` is the gap between the first and second `final` scores. The result is **CONFIDENT** when the
-margin is at least `max(3, 0.3 × N_ore)`. Otherwise the output is a shortlist.
+`margin` is the gap between the winner's `final` score and the best result whose origin is more than
+the observation's own width away. Results closer than that are shifted copies of the winner, not a
+different place. The result is **CONFIDENT** when the margin is at least `max(3, 0.3 × N_ore)`;
+otherwise the output is a shortlist. The GPU matcher only sees hypotheses that passed the `--minfrac`
+filter, so its margin is measured against the best of those.
 
 ### CPU reference solver
 

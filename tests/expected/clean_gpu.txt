@@ -8,4 +8,4 @@ rank           world_origin        chunk  orient    present     absH     final
    2          (-7, -50, -7)     (-1, -1)    r0m1 348/532      152     196.0
    3      (-159, -26, -187)   (-10, -12)    r2m-1 273/532      533    -260.0
 
-top_final=532.0 margin=336.0 => CONFIDENT
+top_final=532.0 margin=792.0 (vs best surviving hypothesis >33 blocks away) => CONFIDENT

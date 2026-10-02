@@ -10,4 +10,4 @@ rank         world_origin       chunk  orient  present  absHits     final
    7     (-130, -36, 215)    (-9, 13)    r2m1 176/633      239     -63.0
    8       (55, -14, -39)     (3, -3)   r3m-1 168/633      232     -64.0
 
-top_final=633.0  margin_to_next=452.0  => CONFIDENT (unique)
+top_final=633.0  margin=557.0 (vs best >33 blocks away)  => CONFIDENT (unique)
