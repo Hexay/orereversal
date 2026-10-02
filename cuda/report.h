@@ -33,9 +33,26 @@ static void printGenerationGating(const std::vector<int>& configIds, bool allFam
     printf("]%s\n", allFamilies ? " (all GPU families: bare-absence)" : " (rare-gated)");
 }
 
-// Up to 10 ranked hypotheses, then the margin between the best one and the best one more than
-// `separation` blocks from it: a copy of the winner shifted by a few blocks is the same place, not a
-// competing location. CONFIDENT means that margin is at least max(3, 0.3 * oreTotal).
+// The best hypothesis more than `separation` blocks from the winner (results are best first), or null: a
+// copy of the winner shifted by a few blocks is the same place, not a competing location.
+static const Result* bestCompetitor(const std::vector<Result>& results, int separation) {
+    for (const Result& r : results)
+        if (chebyshev(r, results[0]) > separation)
+            return &r;
+    return nullptr;
+}
+
+static bool confidentMargin(float margin, int oreTotal) {
+    return margin >= std::max(3.0, 0.3 * oreTotal);
+}
+
+// A verdict printRanking would call CONFIDENT. Having no competitor at all is not.
+static bool isConfident(const std::vector<Result>& results, int oreTotal, int separation) {
+    const Result* competitor = results.empty() ? nullptr : bestCompetitor(results, separation);
+    return competitor && confidentMargin(results[0].score - competitor->score, oreTotal);
+}
+
+// Up to 10 ranked hypotheses, then the margin between the winner and bestCompetitor.
 static void printRanking(const char* title, const std::vector<Result>& results, int oreTotal, int separation,
                          const char* confidentLabel) {
     printf("\n%s\n", title);
@@ -51,12 +68,7 @@ static void printRanking(const char* title, const std::vector<Result>& results, 
     }
     if (results.empty())
         return;
-    const Result* competitor = nullptr;
-    for (const Result& r : results)
-        if (chebyshev(r, results[0]) > separation) {
-            competitor = &r; // results are best first
-            break;
-        }
+    const Result* competitor = bestCompetitor(results, separation);
     if (!competitor) {
         printf("\ntop_final=%.1f margin=n/a (no other surviving hypothesis >%d blocks away)\n",
                results[0].score, separation);
@@ -66,7 +78,7 @@ static void printRanking(const char* title, const std::vector<Result>& results, 
     float margin = results[0].score - competitor->score;
     printf("\ntop_final=%.1f margin=%.1f (vs best surviving hypothesis >%d blocks away) => %s\n",
            results[0].score, margin, separation,
-           (margin >= std::max(3.0, 0.3 * oreTotal)) ? confidentLabel : "shortlist");
+           confidentMargin(margin, oreTotal) ? confidentLabel : "shortlist");
 }
 
 #endif

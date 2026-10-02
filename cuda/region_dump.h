@@ -41,13 +41,6 @@ static bool regionDumpExists() {
     return true;
 }
 
-static int familyFromName(const char* name) {
-    for (int f = 0; f < F_COUNT; f++)
-        if (!strcmp(name, FAMILY_NAMES[f]))
-            return f;
-    return -1;
-}
-
 // Calls onBlock(family, group, variant, x, y, z) for every deepslate-band candidate of `families` (space-
 // separated names and region_dump flags) in the chunk box. group is "" for ordinary candidates; with
 // +branch, alternative surface-gate outcomes come as numbered variants of a named group, of which exactly

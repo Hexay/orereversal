@@ -775,8 +775,23 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
   Granite: the port is right (cubiomes' extra granite is never real). Lapis: the real gate agrees with
   cubiomes for some veins and not others, and BOTH outcomes recover 99% -- gate branching again. The
   practical risk is pass 1's anchor: with lapis as the anchor family, an anchor cell the port misses
-  (~21% of lapis there) means the truth is never generated (synthetic room 40 above). Not fixed yet.
+  (~21% of lapis there) means the truth is never generated (synthetic room 40 above).
   regress.sh golden_diff_low pins today's divergence in chunks -16..-9.
+  CORRECTION: the first count used every saved chunk, but gt/world also holds chunks saved before the
+  features stage (no ore at all). Restricted to chunks whose 3x3 neighbourhood has features (35 chunks):
+    lapis   port 307/392 (78%) 55 ghosts | cubiomes 339/392 (86%) 33 | union 392/392 (100%) 88
+    granite port 523/523 0 ghosts        | cubiomes 523/523 30
+- ANCHOR BAKE-OFF (real rooms, gt/world, 28x15x28, featured chunks only, each showing lapis + redstone;
+  40 low-terrain + 25 land): baseline 64/65; A (anchor on redstone) 65/65; B (2 lapis anchor cells,
+  farthest apart) 64/65 -- the miss has both lapis cells unpredicted, so B can't help; A+B 65/65. A costs
+  2.6x anchors, score ~2.5-3x (pass 1 ~240 -> ~400 ms / 262k chunks) and reports lower margins (more
+  distant survivors). An earlier 50-room run showed 5 "misses" under every strategy: all overlapped
+  unfeatured chunks (100-200 tuff ghosts at the truth) -- a test-data artefact.
+- DECIDED: retry, not always-A. A lapis-anchored result that isn't CONFIDENT reruns pass 1 anchored on the
+  rarer of redstone/granite and merges (retryAnchorFamily). Real rooms 65/65 at baseline margins; it fired
+  once in 65 (the real miss); synthetic room 40 -> 480/483 margin 411. rare_only gains a verdict (24 vs 12).
+  --anchor-family forces a family (and disables the retry).
+- NEXT (not done): both gate outcomes for lapis at refine (the union holds 100% of real lapis).
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU

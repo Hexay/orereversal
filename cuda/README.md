@@ -38,7 +38,7 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
 1. **Pass 1 (GPU, per tile).** `kSetupVeins` runs one thread per (chunk, ore config) and writes each
    vein's nodes to scratch. `kFillVeins` then runs one warp per vein and ORs the vein's blocks into
    the occupancy grid for tuff, redstone, lapis and granite. `kIronVeins` adds iron-vein tuff. Every
-   candidate of the rarest observed family becomes an anchor. `kScoreHypotheses` tests each anchor in 8 orientations for presence and
+   candidate of the rarest observed family becomes an anchor (see the surface-gate note for the retry). `kScoreHypotheses` tests each anchor in 8 orientations for presence and
    soft absence. Hypotheses that pass the `--minfrac` filter are merged into a global top-K.
 2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 8 families. Gravel, copper,
    iron, buried diamond and ore-vein blocks come from `region_dump`. Pass 2 stops at the point where
@@ -86,9 +86,10 @@ it, a room deep in a vein could fall below `--minfrac` and never reach refine (0
 
 **Known gap: surface gate on the GPU families.** The GPU port never gates veins on terrain height. On land
 that matches real worlds at least as well as cubiomes' approximation. In low terrain (6% of chunks on seed
-123) lapis disagrees: the port finds 79% of real lapis there, cubiomes 85%, both outcomes together 99%.
+123) lapis disagrees: the port finds 78% of real lapis there, cubiomes 86%, both outcomes together 100%.
 If lapis is the anchor family and its anchor cell is one the port misses, pass 1 never generates the true
-location (`docs/research-log.md` P9).
+location, so a lapis-anchored result that isn't confident is retried anchored on redstone or granite
+(`retryAnchorFamily`; 65/65 real rooms, `docs/research-log.md` P9).
 
 ## Validation
 

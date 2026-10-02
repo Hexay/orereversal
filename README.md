@@ -178,6 +178,7 @@ lapis and copper, so results for a 1.20+ world are wrong without it.
 | `--topk K` | `4096` | Number of pass-1 survivors kept across tiles. |
 | `--refine N` | `64` | Number of top hypotheses re-scored with every family in pass 2. |
 | `--no-refine` | | Run GPU pass 1 only (4 families). |
+| `--anchor-family F` | rarest | GPU family (`tuff`, `redstone`, `lapis`, `granite`) whose candidates seed the hypotheses. By default it's the rarest observed, and a lapis-anchored result that isn't confident is retried on redstone or granite. |
 | `--legacy-gen` | | Use the original one-thread-per-chunk generator. This is the bit-exact reference and runs about 3× slower. |
 
 ### Observation format

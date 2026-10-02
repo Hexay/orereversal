@@ -25,6 +25,7 @@ struct Options {
     bool refine = true;
     bool legacyGenerator = false;
     bool generateAllFamilies = false; // --no-gate: skip family gating (debugging)
+    int anchorFamily = -1;            // --anchor-family; -1: the rarest observed GPU family
 };
 
 static const char* USAGE =
@@ -39,7 +40,9 @@ static const char* USAGE =
     "  --refine N      hypotheses re-scored with all families in pass 2 (default 64)\n"
     "  --no-refine     GPU pass only\n"
     "  --legacy-gen    one-thread-per-chunk reference generator\n"
-    "  --no-gate       generate every GPU family even when the observation doesn't need it\n";
+    "  --no-gate       generate every GPU family even when the observation doesn't need it\n"
+    "  --anchor-family F  GPU family whose candidates seed hypotheses (default: the rarest observed,\n"
+    "                     retrying on redstone/granite if a lapis-anchored result isn't confident)\n";
 
 // Returns false (after printing why) on bad input.
 static bool parseOptions(int argc, char** argv, Options& o) {
@@ -78,7 +81,13 @@ static bool parseOptions(int argc, char** argv, Options& o) {
             o.topK = atoi(argv[++i]);
         else if (!strcmp(a, "--refine") && hasValue)
             o.refineCount = atoi(argv[++i]);
-        else {
+        else if (!strcmp(a, "--anchor-family") && hasValue) {
+            o.anchorFamily = familyFromName(argv[++i]);
+            if (o.anchorFamily < 0 || o.anchorFamily >= GPU_FAMILY_COUNT) {
+                fprintf(stderr, "--anchor-family must be a GPU family (tuff, redstone, lapis, granite)\n");
+                return false;
+            }
+        } else {
             fprintf(stderr, "unknown or incomplete option: %s\n", a);
             fprintf(stderr, USAGE, argv[0]);
             return false;

@@ -14,15 +14,55 @@ struct Observation {
     std::vector<ObsCell> bare;
     int familyCounts[F_COUNT] = {0};
     int gpuOreCount = 0;
-    int anchorFamily = -1; // rarest GPU family observed; its candidates seed the hypotheses
-    ObsCell anchorCell;
-    int maxExtent = 1;   // largest |x| or |z| of any cell
-    int anchorReach = 0; // largest x/z (Chebyshev) distance from anchorCell to any cell, in any orientation
-    int footprint = 0;   // horizontal size: max(x span, z span) over all cells
+    int anchorFamily = -1; // its candidates seed the hypotheses
+    ObsCell anchorCell;    // the observed cell of anchorFamily those candidates are aligned to
+    int maxExtent = 1;     // largest |x| or |z| of any cell
+    int anchorReach = 0;   // largest x/z (Chebyshev) distance from anchorCell to any cell, in any orientation
+    int footprint = 0;     // horizontal size: max(x span, z span) over all cells
 };
 
-// Returns false (after printing why) if the file can't be read or has no GPU-family ore.
-static bool loadObservation(const char* path, Observation& obs) {
+// Sets the anchor family (`family`, or the rarest observed GPU family if -1) and its first observed cell.
+// Returns false if the family wasn't observed.
+static bool chooseAnchor(Observation& obs, int family) {
+    if (family < 0) {
+        int fewest = 1 << 30;
+        for (int f = 0; f < GPU_FAMILY_COUNT; f++)
+            if (obs.familyCounts[f] > 0 && obs.familyCounts[f] < fewest) {
+                fewest = obs.familyCounts[f];
+                family = f;
+            }
+    }
+    if (family < 0 || obs.familyCounts[family] == 0) {
+        fprintf(stderr, "no observed cell of the anchor family\n");
+        return false;
+    }
+    obs.anchorFamily = family;
+    obs.anchorCell = *std::find_if(obs.ore.begin(), obs.ore.end(),
+                                   [&](const ObsCell& c) { return c.family == family; });
+    obs.anchorReach = 0;
+    for (const std::vector<ObsCell>* list : {&obs.ore, &obs.bare})
+        for (const ObsCell& c : *list)
+            obs.anchorReach = std::max(obs.anchorReach,
+                                       std::max(abs(c.x - obs.anchorCell.x), abs(c.z - obs.anchorCell.z)));
+    return true;
+}
+
+// The family to re-anchor on when a lapis-anchored search isn't confident, or -1. In low terrain the GPU
+// generator misses ~20% of real lapis (no surface gate, docs/research-log.md P9), and if the anchor cell is
+// one of those the true origin is never hypothesized. Redstone and granite are unaffected; tuff would flood
+// the anchor buffer.
+static int retryAnchorFamily(const Observation& obs) {
+    if (obs.anchorFamily != F_LAPIS)
+        return -1;
+    int best = -1;
+    for (int family : {F_REDSTONE, F_GRANITE})
+        if (obs.familyCounts[family] > 0 && (best < 0 || obs.familyCounts[family] < obs.familyCounts[best]))
+            best = family;
+    return best;
+}
+
+// Returns false (after printing why) if the file can't be read or has no usable anchor.
+static bool loadObservation(const char* path, int anchorFamily, Observation& obs) {
     FILE* f = fopen(path, "r");
     if (!f) {
         fprintf(stderr, "cannot open %s\n", path);
@@ -53,27 +93,16 @@ static bool loadObservation(const char* path, Observation& obs) {
         if (c.family < GPU_FAMILY_COUNT)
             obs.gpuOreCount++;
     }
-    int fewest = 1 << 30;
-    for (int family = 0; family < GPU_FAMILY_COUNT; family++)
-        if (obs.familyCounts[family] > 0 && obs.familyCounts[family] < fewest) {
-            fewest = obs.familyCounts[family];
-            obs.anchorFamily = family;
-        }
-    if (obs.anchorFamily < 0) {
+    if (!obs.gpuOreCount) {
         fprintf(stderr, "no GPU-generated ore family in observation\n");
         return false;
     }
-    for (const ObsCell& c : obs.ore)
-        if (c.family == obs.anchorFamily) {
-            obs.anchorCell = c;
-            break;
-        }
-    int minX = obs.anchorCell.x, maxX = minX, minZ = obs.anchorCell.z, maxZ = minZ;
+    if (!chooseAnchor(obs, anchorFamily))
+        return false;
+    int minX = obs.ore[0].x, maxX = minX, minZ = obs.ore[0].z, maxZ = minZ;
     for (const std::vector<ObsCell>* cells : {&obs.ore, &obs.bare})
         for (const ObsCell& c : *cells) {
             obs.maxExtent = std::max(obs.maxExtent, std::max(abs(c.x), abs(c.z)));
-            obs.anchorReach =
-                std::max(obs.anchorReach, std::max(abs(c.x - obs.anchorCell.x), abs(c.z - obs.anchorCell.z)));
             minX = std::min(minX, c.x);
             maxX = std::max(maxX, c.x);
             minZ = std::min(minZ, c.z);

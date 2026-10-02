@@ -21,6 +21,13 @@ enum { F_TUFF = 0, F_REDSTONE, F_LAPIS, F_GRANITE, F_GRAVEL, F_COPPER, F_IRON, F
 static const char* const FAMILY_NAMES[F_COUNT] = {"tuff",   "redstone", "lapis", "granite",
                                                   "gravel", "copper",   "iron",  "diamond"};
 
+static inline int familyFromName(const char* name) {
+    for (int f = 0; f < F_COUNT; f++)
+        if (!strcmp(name, FAMILY_NAMES[f]))
+            return f;
+    return -1;
+}
+
 // Versions whose ore configs differ. 1.20 inserted ore_diamond_medium into the underground-ores step,
 // shifting the decorator index of every later feature (lapis, buried lapis, copper) by one.
 enum { ERA_1_18 = 0, ERA_1_20, ERA_COUNT }; // 1.18-1.19, 1.20+
