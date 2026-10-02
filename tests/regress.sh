@@ -34,6 +34,9 @@ fi
 MATCHER=cuda/matcher$EXE
 ORETEST=cuda/oretest$EXE
 REGION_DUMP=harness/region_dump$EXE
+for bin in "$MATCHER" "$ORETEST" "$REGION_DUMP"; do
+  [ -x "$bin" ] || { echo "$bin not found: build first (bash tests/regress.sh --build)"; exit 1; }
+done
 if command -v py >/dev/null 2>&1; then PY="py -3"; else PY=python3; fi
 
 FAIL=0
@@ -67,6 +70,9 @@ $MATCHER $REGION "$TMP/noise1.csv" --error 1 --abs-error 1 2>&1 | check noise1_a
 $MATCHER $REGION "$TMP/rare_only.csv"                   2>&1 | check rare_only rare_only
 $MATCHER 123 -16 15 -16 15 examples/real_polA.csv       2>&1 | check real_polA real_polA
 $MATCHER $REGION "$TMP/room_120.csv" --version 1.20     2>&1 | check room_120 room_120
+# A patch version must refine exactly like its minor (region_dump once rejected it and refine went quiet).
+$MATCHER $REGION "$TMP/room_120.csv" --version 1.20.4 2>&1 | sed 's/mc=1\.20\.4/mc=1.20/' \
+  | check room_1204 room_120
 $MATCHER 123 -16 15 -16 15 examples/real_vein_room.csv  2>&1 | check real_vein_room real_vein_room
 
 golden_diff() {   # golden_diff <version> [chunk box]: per-family count of blocks where port != cubiomes

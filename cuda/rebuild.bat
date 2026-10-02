@@ -4,7 +4,10 @@ call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliar
 set "PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin;%PATH%"
 echo === building oretest (host) ===
 cl /nologo /O2 /fp:strict oretest.c /Fe:oretest.exe >nul
-echo oretest_exit=%ERRORLEVEL%
+set OT=%ERRORLEVEL%
+echo oretest_exit=%OT%
 echo === building matcher (device) ===
 nvcc -O2 -std=c++17 -arch=sm_89 -Xcompiler /openmp -Xptxas -v matcher.cu -o matcher.exe
-echo matcher_exit=%ERRORLEVEL%
+set MT=%ERRORLEVEL%
+echo matcher_exit=%MT%
+if not "%OT%%MT%"=="00" exit /b 1

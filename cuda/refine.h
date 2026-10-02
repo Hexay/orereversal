@@ -39,8 +39,8 @@ struct VariantGroup {
 };
 
 // Candidate blocks of every family over the chunk box, deepslate band only. Gate-sensitive gravel, copper
-// and lapis come as groups of alternatives instead.
-static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
+// and lapis come as groups of alternatives instead. Returns false if region_dump failed.
+static bool generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
                                 int chunkMaxZ, BlockSet* candidates, std::vector<VariantGroup>& groups) {
     std::vector<OrePos> positions(200000);
     for (int cx = chunkMinX; cx <= chunkMaxX; cx++)
@@ -61,7 +61,7 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
                             blockKey(positions[k].x, positions[k].y, positions[k].z));
             }
     std::unordered_map<std::string, int> groupIndex;
-    runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ,
+    return runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ,
                   "lapis gravel copper iron diamond +veins +branch",
                   [&](int family, const char* group, int variant, int x, int y, int z) {
                       if (!group[0]) {
@@ -178,11 +178,11 @@ static Result rescore(const Result& r, const Observation& obs, const BlockSet* c
     return best;
 }
 
-// Re-scores the leading hypotheses of `top` (sorted best first) and returns them sorted best first. Also
+// Re-scores the leading hypotheses of `top` (sorted best first) into `out`, sorted best first. Also
 // re-scores the best hypothesis more than `separation` blocks from the leader, so the report always has a
-// genuine competitor to measure the margin against.
-static std::vector<Result> refine(const std::vector<Result>& top, const Observation& obs, const Options& opt,
-                                  int separation) {
+// genuine competitor to measure the margin against. Returns false if region_dump failed.
+static bool refine(const std::vector<Result>& top, const Observation& obs, const Options& opt, int separation,
+                   std::vector<Result>& out) {
     // The refine-only families (and lapis, regenerated here) can add at most this much to any hypothesis,
     // so hypotheses further than this below the best can't overtake it. Always refine at least 8.
     int maxGain = obs.familyCounts[F_LAPIS];
@@ -206,26 +206,32 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
 
     int margin = marginChunks(obs);
     std::vector<Result> refined(chosen.size());
-#pragma omp parallel for schedule(dynamic)
+    int failures = 0;
+#pragma omp parallel for schedule(dynamic) reduction(+ : failures)
     for (int t = 0; t < (int)chosen.size(); t++) {
         const Result& r = chosen[t];
         BlockSet candidates[F_COUNT];
         std::vector<VariantGroup> groups;
-        generateAllFamilies(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
-                            ((r.originX + obs.maxExtent) >> 4) + margin,
-                            ((r.originZ - obs.maxExtent) >> 4) - margin,
-                            ((r.originZ + obs.maxExtent) >> 4) + margin, candidates, groups);
+        if (!generateAllFamilies(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
+                                 ((r.originX + obs.maxExtent) >> 4) + margin,
+                                 ((r.originZ - obs.maxExtent) >> 4) - margin,
+                                 ((r.originZ + obs.maxExtent) >> 4) + margin, candidates, groups)) {
+            failures++;
+            continue;
+        }
         chooseVariants(r, obs, candidates, groups, opt);
         refined[t] = rescore(r, obs, candidates, opt);
     }
+    if (failures)
+        return false;
     std::sort(refined.begin(), refined.end(), rankedBefore);
     // Re-centring can move two hypotheses onto (nearly) the same origin; keep the better one.
-    std::vector<Result> distinct;
+    out.clear();
     for (const Result& r : refined)
-        if (std::none_of(distinct.begin(), distinct.end(),
+        if (std::none_of(out.begin(), out.end(),
                          [&](const Result& d) { return chebyshev(d, r) <= 2 * opt.tolerance + 1; }))
-            distinct.push_back(r);
-    return distinct;
+            out.push_back(r);
+    return true;
 }
 
 #endif

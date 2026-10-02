@@ -45,18 +45,13 @@ static const FamilyOre ORES[] = {
 };
 #define ORE_COUNT ((int)(sizeof(ORES) / sizeof(ORES[0])))
 
+// Accepts 1.N and 1.N.p; releases after 1.21 (incl. year-based 26.x) share 1.21's ore configs.
 static int parseVersion(const char* s) {
-    struct {
-        const char* name;
-        int mc;
-    } versions[] = {
-        {"1.21", MC_1_21}, {"1.20", MC_1_20}, {"1.19", MC_1_19},
-        {"1.18", MC_1_18}, {"1.17", MC_1_17}, {"1.16", MC_1_16},
-    };
-    for (size_t i = 0; i < sizeof(versions) / sizeof(versions[0]); i++)
-        if (!strcmp(s, versions[i].name))
-            return versions[i].mc;
-    return MC_UNDEF;
+    static const int byMinor[] = {MC_1_16, MC_1_17, MC_1_18, MC_1_19, MC_1_20, MC_1_21};
+    int minor = strncmp(s, "1.", 2) == 0 ? atoi(s + 2) : 99;
+    if (minor < 16)
+        return MC_UNDEF;
+    return minor > 21 ? MC_1_21 : byMinor[minor - 16];
 }
 
 // Prints the chunk's ore-vein blocks in [yMin, yMax]; raw ore blocks have no family and are skipped.

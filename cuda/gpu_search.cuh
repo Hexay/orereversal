@@ -21,6 +21,7 @@
 struct SearchStats {
     int tiles = 0;
     long long anchors = 0, survivors = 0;
+    long long anchorsDropped = 0, survivorsDropped = 0; // over ANCHOR_CAPACITY / SURVIVOR_CAPACITY
     float msGenerate = 0, msSetup = 0, msScore = 0;
 };
 
@@ -43,6 +44,12 @@ template <class T> static T readDevice(const T* p) {
     return v;
 }
 
+// Sinks count every write but only store up to capacity; tallies the excess in `dropped`.
+static int clampToCapacity(int written, int capacity, long long& dropped) {
+    dropped += std::max(0, written - capacity);
+    return std::min(written, capacity);
+}
+
 static float elapsedMs(cudaEvent_t from, cudaEvent_t to) {
     float ms;
     CUDA_CHECK(cudaEventElapsedTime(&ms, from, to));
@@ -54,7 +61,8 @@ class GpuSearch {
   public:
     GpuSearch(const Options& opt, const Observation& obs, const std::vector<int>& configIds)
         : opt_(opt), obs_(obs), configCount_((int)configIds.size()), margin_(tileMarginChunks(obs)) {
-        int maxSide = opt.tileSize + 2 * margin_;
+        int regionSide = std::max(opt.chunkMaxX - opt.chunkMinX, opt.chunkMaxZ - opt.chunkMinZ) + 1;
+        int maxSide = std::min(opt.tileSize, regionSide) + 2 * margin_;
         int64_t maxBlocksSide = (int64_t)maxSide * 16;
         maxWordsPerFamily_ = (maxBlocksSide * BAND_HEIGHT * maxBlocksSide + 31) / 32;
         occupancy_ = deviceAlloc<uint32_t>(GPU_FAMILY_COUNT * maxWordsPerFamily_);
@@ -90,6 +98,19 @@ class GpuSearch {
         CUDA_CHECK(cudaEventCreate(&generated_));
         CUDA_CHECK(cudaEventCreate(&scored_));
     }
+
+    // The anchor retry builds a second search, so buffers must not outlive this one.
+    ~GpuSearch() {
+        for (void* p : {(void*)occupancy_, (void*)anchors_, (void*)mortonKeys_, (void*)anchorCount_,
+                        (void*)survivors_, (void*)survivorCount_, (void*)nextVein_, (void*)configIds_,
+                        (void*)ore_, (void*)bare_, (void*)veinNoise_, (void*)scratch_.nodes,
+                        (void*)scratch_.veins, (void*)scratch_.nodeCount, (void*)scratch_.veinCount})
+            cudaFree(p);
+        for (cudaEvent_t e : {start_, setupDone_, generated_, scored_})
+            cudaEventDestroy(e);
+    }
+    GpuSearch(const GpuSearch&) = delete;
+    GpuSearch& operator=(const GpuSearch&) = delete;
 
     void printGeneratorInfo() const {
         if (opt_.legacyGenerator)
@@ -143,11 +164,12 @@ class GpuSearch {
         if (ironVeins_)
             kIronVeins<<<chunks.countX * chunks.countZ, IRON_VEIN_BLOCK_SIZE>>>(
                 veinNoise_, chunks, grid, anchors, obs_.anchorFamily == F_TUFF);
+        CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaEventRecord(generated_));
         CUDA_CHECK(cudaEventSynchronize(generated_));
         stats.msGenerate += elapsedMs(start_, generated_);
 
-        int anchorCount = std::min(readDevice(anchorCount_), ANCHOR_CAPACITY);
+        int anchorCount = clampToCapacity(readDevice(anchorCount_), ANCHOR_CAPACITY, stats.anchorsDropped);
         stats.anchors += anchorCount;
         if (!anchorCount)
             return true;
@@ -178,6 +200,7 @@ class GpuSearch {
         }
         kFillVeins<<<fillBlocks_, FILL_BLOCK_SIZE>>>(grid, anchors, scratch_.nodes, scratch_.veins, veinCount,
                                                      nextVein_);
+        CUDA_CHECK(cudaGetLastError());
         return true;
     }
 
@@ -200,14 +223,16 @@ class GpuSearch {
         CUDA_CHECK(cudaEventRecord(generated_));
         kMortonKeys<<<(anchorCount + 255) / 256, 256>>>(anchors_, anchorCount, grid.originX, grid.originZ,
                                                         mortonKeys_);
+        CUDA_CHECK(cudaGetLastError());
         thrust::sort_by_key(thrust::device, mortonKeys_, mortonKeys_ + anchorCount, anchors_);
         int64_t hypotheses = (int64_t)anchorCount * 8;
         kScoreHypotheses<<<(int)((hypotheses + 127) / 128), 128>>>(anchors_, anchorCount, grid, in, out);
+        CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaEventRecord(scored_));
         CUDA_CHECK(cudaEventSynchronize(scored_));
         stats.msScore += elapsedMs(generated_, scored_);
 
-        int count = std::min(readDevice(survivorCount_), SURVIVOR_CAPACITY);
+        int count = clampToCapacity(readDevice(survivorCount_), SURVIVOR_CAPACITY, stats.survivorsDropped);
         std::vector<Result> survivors(count);
         if (count)
             CUDA_CHECK(

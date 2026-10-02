@@ -32,7 +32,39 @@ static bool searchPass1(const Options& opt, const Observation& obs, std::vector<
     printf("[timing] generate=%.0f ms (setup=%.0f fill=%.0f) | score=%.0f ms | generate/score=%.2f\n",
            stats.msGenerate, stats.msSetup, stats.msGenerate - stats.msSetup, stats.msScore,
            stats.msScore > 0 ? stats.msGenerate / stats.msScore : 0);
+    if (stats.anchorsDropped || stats.survivorsDropped)
+        fprintf(stderr,
+                "warning: buffers full, dropped %lld anchors and %lld survivors; the true location may be "
+                "missing (use a smaller --tile or a higher --minfrac)\n",
+                stats.anchorsDropped, stats.survivorsDropped);
     mergeTopK(top, found, 2 * opt.tolerance + 1, opt.topK);
+    return true;
+}
+
+// Pass 2, or pass 1's ranking as-is under --no-refine. Returns false (after printing why) on failure.
+static bool rankResults(const Options& opt, const Observation& obs, const std::vector<Result>& top,
+                        int separation, std::vector<Result>& results) {
+    if (!opt.refine) {
+        results = top;
+        return true;
+    }
+    if (refine(top, obs, opt, separation, results))
+        return true;
+    fprintf(stderr, "refine: region_dump failed; run it by hand (%s) to see why\n", g_regionDumpPath);
+    return false;
+}
+
+// region_dump rejects what the matcher can't refine (e.g. an unknown version), so fail before pass 1.
+static bool checkRegionDump(const Options& opt) {
+    if (!regionDumpExists()) {
+        fprintf(stderr, "region_dump not found at %s — run harness/build.sh, or pass --no-refine\n",
+                g_regionDumpPath);
+        return false;
+    }
+    if (!runRegionDump(opt.seed, opt.version, 0, 0, 0, 0, "tuff", [](int, const char*, int, int, int, int) {})) {
+        fprintf(stderr, "region_dump %s rejected version '%s'\n", g_regionDumpPath, opt.version);
+        return false;
+    }
     return true;
 }
 
@@ -41,11 +73,8 @@ int main(int argc, char** argv) {
     if (!parseOptions(argc, argv, opt))
         return 2;
     resolveRegionDumpPath(argv[0]);
-    if (opt.refine && !regionDumpExists()) {
-        fprintf(stderr, "region_dump not found at %s — run harness/build.sh, or pass --no-refine\n",
-                g_regionDumpPath);
+    if (opt.refine && !checkRegionDump(opt))
         return 1;
-    }
     Observation obs;
     if (!loadObservation(opt.observationPath, opt.anchorFamily, obs))
         return 1;
@@ -56,16 +85,17 @@ int main(int argc, char** argv) {
         return 1;
     int separation = std::max(2 * opt.tolerance + 1, obs.footprint); // see printRanking
     int oreTotal = opt.refine ? (int)obs.ore.size() : obs.gpuOreCount;
-    std::vector<Result> results = opt.refine ? refine(top, obs, opt, separation) : top;
+    std::vector<Result> results;
+    if (!rankResults(opt, obs, top, separation, results))
+        return 1;
 
     int retryFamily = opt.anchorFamily < 0 ? retryAnchorFamily(obs) : -1;
     if (retryFamily >= 0 && !isConfident(results, oreTotal, separation)) {
         printf("\nnot confident with a lapis anchor: retrying pass 1 anchored on %s (docs/research-log.md P9)\n",
                FAMILY_NAMES[retryFamily]);
         chooseAnchor(obs, retryFamily);
-        if (!searchPass1(opt, obs, top))
+        if (!searchPass1(opt, obs, top) || !rankResults(opt, obs, top, separation, results))
             return 1;
-        results = opt.refine ? refine(top, obs, opt, separation) : top;
     }
 
     if (!opt.refine) {

@@ -44,7 +44,7 @@ static bool regionDumpExists() {
 // Calls onBlock(family, group, variant, x, y, z) for every deepslate-band candidate of `families` (space-
 // separated names and region_dump flags) in the chunk box. group is "" for ordinary candidates; with
 // +branch, alternative surface-gate outcomes come as numbered variants of a named group, of which exactly
-// one is real. Returns false if region_dump couldn't be started.
+// one is real. Returns false if region_dump couldn't be started or failed (e.g. an unknown version).
 template <class OnBlock>
 static bool runRegionDump(uint64_t seed, const char* version, int chunkMinX, int chunkMaxX, int chunkMinZ,
                           int chunkMaxZ, const char* families, OnBlock onBlock) {
@@ -70,8 +70,7 @@ static bool runRegionDump(uint64_t seed, const char* version, int chunkMinX, int
         if (family >= 0)
             onBlock(family, group, variant, x, y, z);
     }
-    pclose(p);
-    return true;
+    return pclose(p) == 0;
 }
 
 #endif
