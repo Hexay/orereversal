@@ -1,4 +1,5 @@
 [tool.ruff]
 line-length = 110
-# Frozen research snapshot cited by docs/research-log.md; keep it byte-identical.
+# Frozen research snapshot cited by docs/research-log.md; keep its source byte-identical. Its outputs
+# won't match the log exactly: it calls the live candidates.region_dump, which now adds ore veins and diamond.
 extend-exclude = ["python/research"]

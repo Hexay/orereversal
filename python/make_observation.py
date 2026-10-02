@@ -5,7 +5,6 @@ there, or bare. --noise jitters ore cells (not bare ones) by up to +-N blocks pe
 """
 
 import argparse
-import os
 import random
 
 import candidates as C
@@ -23,11 +22,12 @@ def shell_cells(x0, x1, y0, y1, z0, z1):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--seed", default="123")
-    parser.add_argument("--version", default="1.18")
+    C.add_world_args(parser)
     parser.add_argument("--box", default="-6,25,-52,-37,-6,25", help="carved air box: x0,x1,y0,y1,z0,z1")
-    parser.add_argument("--noise", type=int, default=0)
-    parser.add_argument("--out", default=os.path.join(C.ROOT, "examples", "obs_big_room.csv"))
+    parser.add_argument("--noise", type=int, default=0, help="jitter ore cells by up to +-N blocks per axis")
+    parser.add_argument(
+        "--out", required=True, help="CSV to write (examples/obs_big_room.csv is this default room)"
+    )
     args = parser.parse_args()
 
     x0, x1, y0, y1, z0, z1 = (int(v) for v in args.box.split(","))

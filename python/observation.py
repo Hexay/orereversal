@@ -5,7 +5,9 @@ import csv
 import os
 from typing import NamedTuple
 
-SPARSE_FAMILIES = {"lapis", "redstone", "copper", "granite"}
+from candidates import USABLE
+
+SPARSE_FAMILIES = {"lapis", "redstone", "copper", "granite", "diamond"}
 
 
 class Cell(NamedTuple):
@@ -16,13 +18,14 @@ class Cell(NamedTuple):
 
 
 def load_observation(path):
-    """Returns (ore cells, bare cells)."""
+    """Returns (ore cells, bare cells). Rows naming any other family are skipped, as in cuda/observation.h."""
     ore, bare = [], []
     with open(path) as f:
         for row in csv.reader(f):
-            if not row or row[0].strip() in ("family", "") or row[0].startswith("#"):
+            family = row[0].strip() if len(row) >= 4 else ""
+            if family != "bare" and family not in USABLE:
                 continue
-            cell = Cell(int(row[1]), int(row[2]), int(row[3]), row[0].strip())
+            cell = Cell(int(row[1]), int(row[2]), int(row[3]), family)
             (bare if cell.family == "bare" else ore).append(cell)
     return ore, bare
 

@@ -11,8 +11,7 @@ from observation import Cell, write_observation
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--seed", default="123")
-    parser.add_argument("--version", default="1.18", help="Minecraft version, 1.18 or later")
+    C.add_world_args(parser)
     parser.add_argument("--x0", type=int, required=True, help="world x of the wall face")
     parser.add_argument("--y0", type=int, required=True, help="world y of the wall's bottom row")
     parser.add_argument("--z0", type=int, required=True, help="world z of the wall's first column")
