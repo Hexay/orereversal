@@ -1,10 +1,11 @@
-// Gate-branched ore generation for surface-gated configs (gravel, copper).
+// Gate-branched ore generation for surface-gated configs (gravel, copper, lapis).
 //
 // cubiomes approximates Minecraft's per-vein surface gate with a climate-noise height, and it is wrong
 // for a few percent of veins. A wrongly gated vein also shifts the RNG of every later vein of that config
-// in the chunk. When a vein's start height is within BRANCH_MARGIN of the approximate surface, both
-// outcomes are plausible, so this enumerates the decision tree (up to MAX_BRANCH_POINTS borderline veins)
-// and returns each leaf as a variant; refine keeps whichever variant fits each hypothesis best.
+// in the chunk. When a vein's start height is inside the config's BranchWindow around the approximate
+// surface, both outcomes are plausible, so this enumerates the decision tree (up to MAX_BRANCH_POINTS
+// borderline veins) and returns each leaf as a variant; refine keeps whichever variant fits each hypothesis
+// best.
 #ifndef ORE_BRANCH_H
 #define ORE_BRANCH_H
 #include <math.h>
@@ -13,8 +14,14 @@
 #include "generator.h"
 
 #define CUBIOMES_PI       3.14159265358979323846 // finders.c's PI, which isn't exported
-#define BRANCH_MARGIN     12 // 24 gave competitors freedom too: real rooms 457->419 vs 457 at 12 (P8)
 #define MAX_BRANCH_POINTS 3
+
+// Borderline: startY - surface in [-below, above]. Chosen on real worlds (docs/research-log.md P8, P10).
+typedef struct {
+    int below, above;
+} BranchWindow;
+static const BranchWindow GRAVEL_COPPER_WINDOW = {12, 12};
+static const BranchWindow LAPIS_WINDOW = {0, 12};
 #define MAX_VARIANTS      (1 << MAX_BRANCH_POINTS)
 #define HEIGHT_CACHE      24 // quart cells per side cached around one chunk
 
@@ -64,7 +71,7 @@ static int footprintHeight(HeightCache* h, int startX, int startZ, int oreSize) 
 // Generates one leaf of the decision tree. Borderline veins take forced[j] for the j-th one met (j <
 // nForced); later borderline veins (up to MAX_BRANCH_POINTS) follow cubiomes and their default is recorded in
 // defaults[]. Returns the number of borderline veins met, capped at MAX_BRANCH_POINTS.
-static int generateBranch(HeightCache* h, int mc, uint64_t seed, OreConfig c, int cx, int cz,
+static int generateBranch(HeightCache* h, int mc, uint64_t seed, OreConfig c, BranchWindow w, int cx, int cz,
                           const int* forced, int nForced, int* defaults, Pos3List* out) {
     Xoroshiro xr;
     RandomSource rnd = createXoroshiro(&xr);
@@ -90,7 +97,7 @@ static int generateBranch(HeightCache* h, int mc, uint64_t seed, OreConfig c, in
 
         int surface = footprintHeight(h, startX, startZ, oreSize);
         int place = startY <= surface;
-        if (abs(startY - surface) <= BRANCH_MARGIN && met < MAX_BRANCH_POINTS) {
+        if (startY - surface >= -w.below && startY - surface <= w.above && met < MAX_BRANCH_POINTS) {
             if (met < nForced)
                 place = forced[met];
             else
@@ -109,12 +116,12 @@ typedef struct {
     int count;
 } BranchVariants;
 
-static void branchFrom(HeightCache* h, int mc, uint64_t seed, OreConfig c, int cx, int cz, int* forced,
-                       int nForced, BranchVariants* out) {
+static void branchFrom(HeightCache* h, int mc, uint64_t seed, OreConfig c, BranchWindow w, int cx, int cz,
+                       int* forced, int nForced, BranchVariants* out) {
     int defaults[MAX_BRANCH_POINTS];
     Pos3List blocks;
     createPos3List(&blocks, 256);
-    int met = generateBranch(h, mc, seed, c, cx, cz, forced, nForced, defaults, &blocks);
+    int met = generateBranch(h, mc, seed, c, w, cx, cz, forced, nForced, defaults, &blocks);
     if (met <= nForced) { // a leaf: no further borderline vein
         out->variants[out->count++] = blocks;
         return;
@@ -122,16 +129,16 @@ static void branchFrom(HeightCache* h, int mc, uint64_t seed, OreConfig c, int c
     freePos3List(&blocks);
     for (int choice = 0; choice < 2; choice++) {
         forced[nForced] = choice ? !defaults[nForced] : defaults[nForced]; // default path first
-        branchFrom(h, mc, seed, c, cx, cz, forced, nForced + 1, out);
+        branchFrom(h, mc, seed, c, w, cx, cz, forced, nForced + 1, out);
     }
 }
 
 // All variants of one config in one chunk; variants[0] is cubiomes' own output.
-static void generateBranchedOres(HeightCache* h, int mc, uint64_t seed, OreConfig c, int cx, int cz,
-                                 BranchVariants* out) {
+static void generateBranchedOres(HeightCache* h, int mc, uint64_t seed, OreConfig c, BranchWindow w, int cx,
+                                 int cz, BranchVariants* out) {
     int forced[MAX_BRANCH_POINTS];
     out->count = 0;
-    branchFrom(h, mc, seed, c, cx, cz, forced, 0, out);
+    branchFrom(h, mc, seed, c, w, cx, cz, forced, 0, out);
 }
 
 #endif

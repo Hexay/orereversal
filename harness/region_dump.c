@@ -6,8 +6,8 @@
 //   Y band defaults to -64..-1. Families: tuff redstone lapis gravel granite copper iron (default: all).
 //   +veins also emits ore-vein blocks (ore_veins.h) under their family: tuff/iron from iron veins,
 //   granite/copper from copper veins. Off by default so the output stays comparable with cuda/oretest.
-//   +branch emits both outcomes of borderline surface-gate decisions for gravel and copper (ore_branch.h),
-//   tagging such blocks family~<group>~<variant>.
+//   +branch emits both outcomes of borderline surface-gate decisions for gravel, copper and lapis
+//   (ore_branch.h), tagging such blocks family~<group>~<variant>.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,10 +94,10 @@ static long emitBlocks(const char* family, const char* tag, const Pos3List* bloc
 
 // One gate-sensitive config in one chunk. A single variant prints as usual; several print as
 // "family~<group>~<variant>" so refine can pick one per group (ore_branch.h).
-static long emitBranched(HeightCache* heights, int mc, uint64_t seed, OreConfig config, const char* family,
-                         int cx, int cz, int yMin, int yMax) {
+static long emitBranched(HeightCache* heights, int mc, uint64_t seed, OreConfig config, BranchWindow window,
+                         const char* family, int cx, int cz, int yMin, int yMax) {
     BranchVariants v;
-    generateBranchedOres(heights, mc, seed, config, cx, cz, &v);
+    generateBranchedOres(heights, mc, seed, config, window, cx, cz, &v);
     long count = 0;
     for (int k = 0; k < v.count; k++) {
         char tag[64] = "";
@@ -109,6 +109,17 @@ static long emitBranched(HeightCache* heights, int mc, uint64_t seed, OreConfig 
         freePos3List(&v.variants[k]);
     }
     return count;
+}
+
+// Returns 0 for configs whose surface gate is never branched.
+static int branchWindowFor(int oreType, BranchWindow* window) {
+    if (oreType == GravelOre || oreType == CopperOre)
+        *window = GRAVEL_COPPER_WINDOW;
+    else if (oreType == LapisOre || oreType == BuriedLapisOre)
+        *window = LAPIS_WINDOW;
+    else
+        return 0;
+    return 1;
 }
 
 static int looksNumeric(const char* s) {
@@ -177,8 +188,10 @@ int main(int argc, char** argv) {
                 // RNG stream, so this leaves the others' output unchanged (and drops upper iron's 90 veins).
                 if (config.h1 - config.size > yMax || config.h2 + config.size < yMin)
                     continue;
-                if (branch && (ORES[i].oreType == GravelOre || ORES[i].oreType == CopperOre)) {
-                    total += emitBranched(&heights, mc, seed, config, ORES[i].family, cx, cz, yMin, yMax);
+                BranchWindow window;
+                if (branch && branchWindowFor(ORES[i].oreType, &window)) {
+                    total += emitBranched(&heights, mc, seed, config, window, ORES[i].family, cx, cz, yMin,
+                                          yMax);
                     continue;
                 }
                 Pos3List blocks = generateOres(&g, &sn, config, cx, cz);

@@ -791,7 +791,20 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
   rarer of redstone/granite and merges (retryAnchorFamily). Real rooms 65/65 at baseline margins; it fired
   once in 65 (the real miss); synthetic room 40 -> 480/483 margin 411. rare_only gains a verdict (24 vs 12).
   --anchor-family forces a family (and disables the retry).
-- NEXT (not done): both gate outcomes for lapis at refine (the union holds 100% of real lapis).
+
+## P10 — lapis gate branching at refine (2026-10-02): DONE.
+- Refine now takes lapis from region_dump +branch (cubiomes' gate, plus both outcomes for borderline veins)
+  instead of the ungated host port; pass 1 is unchanged. ore_branch.h gained a per-config BranchWindow.
+- WINDOW (oracle: best variant per (chunk, config) group; 34 featured low-terrain + 60 land chunks of gt/world):
+    port 297/382 real low lapis, 55 ghosts | cubiomes 329/382, 33 | free union 382/382, 88
+    branch startY-surface in [-12,12]: 382/382, 5 ghosts, 1162 groups (gravel/copper's window)
+    [0,12], [0,24], [0,inf): 382/382, 5 ghosts, 304 groups   [0,6]: 359/382, 19 ghosts, 216 groups
+  Chose [0,12]: the veins cubiomes gates off, fewest groups (less freedom for competitors). Land: 840/840,
+  7 ghosts under every rule. MAX_BRANCH_POINTS stays 3 (4 gave the same lapis numbers).
+- RESULTS: 65 real rooms (P9 bake-off set) 65/65 before and after; 5 margins move by 1-3 (both ways), medians
+  unchanged (land 278, low 244); wall +~3%. regress: only real_polA's 4th competitor moves (282 -> 280 abs).
+  Real rooms show few lapis cells, so the cleaner lapis barely moves rankings; the pass-1 anchor gap (P9
+  retry) remains, since the GPU port is still ungated.
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU

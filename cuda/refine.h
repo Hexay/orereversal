@@ -1,5 +1,6 @@
 // Pass 2 on the CPU: re-score the best pass-1 hypotheses with every family. Gravel, copper, iron, buried
-// diamond and ore veins come from region_dump, since the GPU doesn't generate them.
+// diamond and ore veins come from region_dump, since the GPU doesn't generate them; so does lapis, whose
+// surface gate the GPU port ignores (docs/research-log.md P10).
 #ifndef REFINE_H
 #define REFINE_H
 #include <algorithm>
@@ -37,8 +38,8 @@ struct VariantGroup {
     std::vector<std::vector<OrePos>> variants;
 };
 
-// Candidate blocks of every family over the chunk box, deepslate band only. Gate-sensitive gravel and
-// copper come as groups of alternatives instead.
+// Candidate blocks of every family over the chunk box, deepslate band only. Gate-sensitive gravel, copper
+// and lapis come as groups of alternatives instead.
 static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
                                 int chunkMaxZ, BlockSet* candidates, std::vector<VariantGroup>& groups) {
     std::vector<OrePos> positions(200000);
@@ -46,6 +47,8 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
         for (int cz = chunkMinZ; cz <= chunkMaxZ; cz++)
             for (int c : gpuConfigIds()) {
                 const OreConfig* config = &ORE_CONFIGS_HOST[c];
+                if (config->family == F_LAPIS)
+                    continue;
                 int count = 0;
                 CandidateSink sink = {};
                 sink.list = positions.data();
@@ -59,7 +62,7 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
             }
     std::unordered_map<std::string, int> groupIndex;
     runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ,
-                  "gravel copper iron diamond +veins +branch",
+                  "lapis gravel copper iron diamond +veins +branch",
                   [&](int family, const char* group, int variant, int x, int y, int z) {
                       if (!group[0]) {
                           candidates[family].insert(blockKey(x, y, z));
@@ -180,9 +183,9 @@ static Result rescore(const Result& r, const Observation& obs, const BlockSet* c
 // genuine competitor to measure the margin against.
 static std::vector<Result> refine(const std::vector<Result>& top, const Observation& obs, const Options& opt,
                                   int separation) {
-    // The refine-only families can add at most this much to any hypothesis, so hypotheses further than
-    // this below the best can't overtake it. Always refine at least 8.
-    int maxGain = 0;
+    // The refine-only families (and lapis, regenerated here) can add at most this much to any hypothesis,
+    // so hypotheses further than this below the best can't overtake it. Always refine at least 8.
+    int maxGain = obs.familyCounts[F_LAPIS];
     for (int family = GPU_FAMILY_COUNT; family < F_COUNT; family++)
         maxGain += obs.familyCounts[family];
     int count = std::min((int)top.size(), opt.refineCount);

@@ -40,8 +40,8 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
    the occupancy grid for tuff, redstone, lapis and granite. `kIronVeins` adds iron-vein tuff. Every
    candidate of the rarest observed family becomes an anchor (see the surface-gate note for the retry). `kScoreHypotheses` tests each anchor in 8 orientations for presence and
    soft absence. Hypotheses that pass the `--minfrac` filter are merged into a global top-K.
-2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 8 families. Gravel, copper,
-   iron, buried diamond and ore-vein blocks come from `region_dump`. Pass 2 stops at the point where
+2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 8 families. Lapis, gravel,
+   copper, iron, buried diamond and ore-vein blocks come from `region_dump`. Pass 2 stops at the point where
    the refine-only families together can no longer change the ranking. It runs in parallel with OpenMP.
 
 `--legacy-gen` swaps in the original one-thread-per-chunk `kGenerateLegacy`. It is the bit-exact
@@ -64,7 +64,7 @@ usable for matching.
 
 | Family | How it's generated | Why |
 |---|---|---|
-| tuff, redstone, lapis, granite | GPU, bit-exact | Discard-free, and need no surface gate |
+| tuff, redstone, lapis, granite | GPU, bit-exact | Discard-free. Lapis needs the surface gate in low terrain, so refine regenerates it via `region_dump` (see below) |
 | gravel, copper | CPU refine via `region_dump.exe` | Their high Y ranges hit cubiomes' `mapApproxHeight` surface gate (see below) |
 | iron | CPU refine via `region_dump.exe` | Discard-free ore features, plus iron ore veins (`harness/ore_veins.h`) |
 | diamond (buried only) | CPU refine via `region_dump.exe` | Discard 1.0 rolls no RNG, so it's exact. Diamonds from the other diamond configs aren't credited |
@@ -75,7 +75,10 @@ cubiomes approximates that terrain, and when it misjudges a vein every later vei
 chunk shifts. For veins within 12 blocks of the approximate surface, `region_dump +branch`
 (`harness/ore_branch.h`) generates both outcomes as alternative variants, and refine keeps whichever fits
 each hypothesis best. On the real vein room this took the true location from 243/269 to 269/269 cells
-with no absence hits (margin 183 → 254); rooms where the gate was right keep their margins.
+with no absence hits (margin 183 → 254); rooms where the gate was right keep their margins. Lapis is
+branched the same way, but only for veins starting 0–12 blocks above the approximate surface (the ones
+cubiomes gates off): in low terrain that recovers every real lapis block, with 5 ghosts against 33 for
+cubiomes alone and 55 for the ungated port.
 
 **Ore veins.** 1.18+ also places large iron veins (iron ore, raw iron and tuff filler, y −60..−8) from
 position-only noise, before ore features run. `region_dump +veins` models them with vanilla's cell
@@ -87,8 +90,9 @@ it, a room deep in a vein could fall below `--minfrac` and never reach refine (0
 **Known gap: surface gate on the GPU families.** The GPU port never gates veins on terrain height. On land
 that matches real worlds at least as well as cubiomes' approximation. In low terrain (6% of chunks on seed
 123) lapis disagrees: the port finds 78% of real lapis there, cubiomes 86%, both outcomes together 100%.
-If lapis is the anchor family and its anchor cell is one the port misses, pass 1 never generates the true
-location, so a lapis-anchored result that isn't confident is retried anchored on redstone or granite
+Refine regenerates lapis with gate branching (above), so this only affects pass 1: if lapis is the anchor
+family and its anchor cell is one the port misses, pass 1 never generates the true location, so a
+lapis-anchored result that isn't confident is retried anchored on redstone or granite
 (`retryAnchorFamily`; 65/65 real rooms, `docs/research-log.md` P9).
 
 ## Validation
