@@ -4,21 +4,21 @@
 
 **A Minecraft coordinate exploit: recover where a screenshot or video was taken from the ore visible in it.**
 
-GPU-accelerated, known-seed world localization from exposed ore patterns, for Minecraft Java 1.18+.
+GPU-accelerated, known-seed world localization from exposed ore, for Minecraft Java Edition 1.18+.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Minecraft 1.18+](https://img.shields.io/badge/Minecraft-1.18%2B-62B47A)
+![Minecraft Java 1.18+](https://img.shields.io/badge/Minecraft%20Java-1.18%2B-62B47A)
 ![CUDA 12](https://img.shields.io/badge/CUDA-12.x-76B900?logo=nvidia&logoColor=white)
 ![Platform: Windows | Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6)
 
-</div>
+<img src="docs/img/hero.png" alt="Left: the ore exposed on the walls of a dug-out room. Right: the matcher's ranking over 262,144 chunks, where the true location scores 633 and the runner-up 86." width="900">
 
----
+</div>
 
 Ore placement in Minecraft is fully determined by the world seed, so the pattern of ore exposed in a
 wall is a fingerprint of where that wall is. Given the seed and the ore blocks visible in a dug-out
 room, for example in a screenshot or a video, orereversal finds the room's absolute coordinates. You
-don't need to know where the room is or which way the camera faced. It reports a ranked list of
+don't need to know roughly where the room is or which way the camera faced. It reports a ranked list of
 candidates and a confidence margin that tells you whether the best match is unique in the searched
 region.
 
@@ -27,20 +27,21 @@ orereversal doesn't read images itself. The visible blocks are first written dow
 tolerates a block or two of misreading.
 
 ```text
-$ cuda/matcher.exe 123 -32 31 -32 31 examples/obs_big_room.csv
-obs: 633 ore + 3791 bare | search 4096 chunks | anchor=lapis(1) tile=256 ...
-scanned 1 tiles | 62495 anchor candidates | 7 survivors (minfrac pre-filter) | top-K=3
+$ cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv
+obs: 633 ore + 3791 bare | mc=1.18 | search 4096 chunks | anchor=lapis(1) tile=256 ...
+scanned 1 tiles | 62495 anchor candidates | 8 survivors (minfrac pre-filter) | top-K=3
 
-(refined top 3 with all 7 families incl. gravel/copper/iron)
+(refined top 3 with all 8 families incl. gravel/copper/iron/diamond)
 rank           world_origin        chunk  orient    present     absH     final
    1          (-6, -52, -6)     (-1, -1)    r0m1 633/633        0     633.0
-   2          (-7, -50, -7)     (-1, -1)    r0m1 369/633      188     181.0
-   3      (-159, -26, -187)   (-10, -12)    r2m-1 286/633      621    -335.0
+   2          (-7, -50, -7)     (-1, -1)    r0m1 369/633      189     180.0
+   3      (-159, -26, -187)   (-10, -12)    r2m-1 286/633      623    -337.0
 
-top_final=633.0 margin=452.0 => CONFIDENT (unique)
+top_final=633.0 margin=970.0 (vs best surviving hypothesis >33 blocks away) => CONFIDENT (unique)
 ```
 
-<sub>About 1.5 s end-to-end on an RTX 4070 Ti SUPER. The true origin of this example room is (-6, -52, -6).</sub>
+<sub>About 0.5 s end to end on an RTX 4070 Ti SUPER. Rank 2 is a shifted copy of the winner, so the margin
+is measured against rank 3. The true origin of this example room is (-6, -52, -6).</sub>
 
 ## Contents
 
@@ -52,6 +53,7 @@ top_final=633.0 margin=452.0 => CONFIDENT (unique)
 - [Performance](#performance)
 - [Validation](#validation)
 - [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
 - [Repository layout](#repository-layout)
 - [Development](#development)
 - [Acknowledgements](#acknowledgements)
@@ -64,11 +66,13 @@ top_final=633.0 margin=452.0 => CONFIDENT (unique)
 - **Orientation-agnostic.** All 8 horizontal rotations and mirrors are tested, so relative
   coordinates in any consistent frame are enough.
 - **Recall-safe.** Every candidate of the rarest observed family is tested as a hypothesis, so the true
-  location can't be pruned before scoring.
+  location isn't pruned before scoring.
 - **Soft absence scoring.** Exposed plain stone (`bare`) penalizes candidates that predict ore where
   there isn't any. This removes false positives that only match on presence.
 - **World-scale.** The search is tiled, so memory stays bounded for any region size. 29M chunks are
-  scanned in about 21 s.
+  scanned in about 23 s.
+- **Validated on a real world.** 65 of 65 rooms carved from a real 1.18.2 world rank first, with a
+  median margin above 240.
 - **Works from footage.** `--error N` matches within ±N blocks, for positions read off a screenshot or
   video frame rather than extracted exactly.
 
@@ -93,23 +97,26 @@ flowchart LR
     end
     D --> E[global top-K]
     subgraph CPU ["PASS 2 · CPU refine"]
-      E --> F[re-score with gravel/<br/>copper/iron via cubiomes]
+      E --> F[re-score with all 8<br/>families via cubiomes]
     end
     F --> G[ranked origins<br/>+ uniqueness margin]
 ```
 
 ### Ore families
 
-Real worldgen couples ore to terrain in three ways. Only some families survive all three. See
-[`cuda/README.md`](cuda/README.md#which-ore-families-and-why) for why.
+Real worldgen couples ore to terrain in three ways, and only some families survive all three.
+[`cuda/README.md`](cuda/README.md#which-ore-families-and-why) explains why.
 
 | Family | Status | Notes |
 |---|---|---|
-| tuff, redstone, lapis, granite | **GPU, bit-exact** | Discard-free. These carry the search. Refine adds the tuff that 1.18+ iron ore veins leave between y −60 and −8. |
+| tuff, redstone, lapis, granite | **GPU, bit-exact** | Discard-free; these carry the search. Tuff includes the filler that 1.18+ iron ore veins leave between y −60 and −8. |
 | gravel, copper | Refine (CPU) | Bit-exact via cubiomes, but they need the surface-height gate that the GPU port doesn't have. Gravel falls once disturbed, so treat it as a bonus. |
 | iron | Refine (CPU) | Ore features plus 1.18+ iron ore veins. A few real blocks are still missed, so treat it as a bonus. |
 | diamond | Refine (CPU) | Only *buried* diamond is exact, so an observed diamond counts when the seed placed a buried diamond there and is ignored otherwise. |
 | gold, coal | **Excluded** | `discardChanceOnAirExposure > 0` desyncs the RNG against real terrain. |
+
+Where cubiomes' approximate surface height could be wrong (gravel, copper, and lapis in low terrain),
+refine tries both outcomes of the surface gate and keeps whichever fits each candidate best.
 
 ## Requirements
 
@@ -160,7 +167,7 @@ cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv      # cuda\matcher.exe
 ## Usage
 
 ```text
-matcher.exe <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [options]
+matcher <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [options]
 ```
 
 The search region is given in **chunk** coordinates, inclusive. The matcher searches the deepslate
@@ -174,7 +181,7 @@ lapis and copper, so results for a 1.20+ world are wrong without it.
 | `--abs-error A` | `0` | Tolerance for `bare` cells: one only counts against a location if ore is predicted at every position within ±A. Use it when bare positions are misread too. |
 | `--absw W` | `1.0` | Weight of each absence hit (ore predicted on a `bare` cell). |
 | `--minfrac F` | `0.5` | Presence pre-filter: the fraction of GPU-family ore a hypothesis must hit to survive pass 1. |
-| `--tile T` | `256` | Tile size in chunks. Values above 320 risk a Windows TDR reset, so they're clamped. |
+| `--tile T` | `256` | Tile size in chunks. Smaller tiles use less GPU memory. Values above 320 risk a Windows TDR reset, so they're clamped. |
 | `--topk K` | `4096` | Number of pass-1 survivors kept across tiles. |
 | `--refine N` | `64` | Number of top hypotheses re-scored with every family in pass 2. |
 | `--no-refine` | | Run GPU pass 1 only (4 families). |
@@ -196,7 +203,7 @@ bare,2,-49,0
 
 Each row is one of the following:
 
-- A usable family: `tuff`, `redstone`, `lapis`, `granite`, `gravel`, `copper` or `iron`.
+- A usable family: `tuff`, `redstone`, `lapis`, `granite`, `gravel`, `copper`, `iron` or `diamond`.
 - `bare`, for plain `stone` or `deepslate`.
 - **Omitted**, for anything else (air, lava, water, other ores, andesite/diorite).
 
@@ -233,32 +240,33 @@ for testing.
 
 ## Performance
 
-These numbers are from an RTX 4070 Ti SUPER (consumer Ada, FP64 at 1/64 rate).
+Measured on an RTX 4070 Ti SUPER (consumer Ada, FP64 at 1/64 rate):
 
 | Search | Chunks | Wall time |
 |---|---|---|
-| Example room (above) | 4,096 | ~1.5 s incl. refine |
-| Large region, `--no-refine` | 29.2 M | ~21 s |
-| 300k × 300k blocks (projected) | ~352 M | ~4.3 min |
+| Example room (above), incl. refine | 4,096 | ~0.5 s |
+| Large region, `--no-refine` (`bash tests/bench.sh 2702`) | 29.2 M | ~23 s |
+| 300k × 300k blocks (projected) | ~352 M | ~4.6 min |
 
-Optimization took the generator from 48 min to about 4 min for a 300k² region. The main steps were a
-two-kernel split, a mixed-precision distance test with an FP64 boundary shell, a column-analytic
-sphere union, and Morton-sorted scoring. Several dead ends were measured and abandoned along the way.
-The full write-up is in [`docs/gpu-optimization.md`](docs/gpu-optimization.md). The reusable
-methodology is in [`docs/cuda-playbook.md`](docs/cuda-playbook.md).
+Optimization took a 300k² search from 48 min to under 5 min. The main steps were a two-kernel split,
+a mixed-precision distance test with an FP64 boundary shell, a column-analytic sphere union, and
+Morton-sorted scoring. Several dead ends were measured and abandoned along the way. The full write-up
+is in [`docs/gpu-optimization.md`](docs/gpu-optimization.md), and the reusable methodology is in
+[`docs/cuda-playbook.md`](docs/cuda-playbook.md).
 
 ## Validation
 
 - **Generator.** `cuda/oretest.c` produces zero position diffs against cubiomes for tuff, redstone,
-  lapis and granite.
-- **Real world.** Two carved rooms in a real 1.18.2 world (seed 123) were both ranked #1 with
-  every ore cell matched and no absence hits:
+  lapis, granite and iron-vein tuff.
+- **Real world.** 65 rooms (28 × 15 × 28 blocks) carved from a real 1.18.2 world (seed 123), 40 of them
+  in low terrain where the surface gate matters, all ranked first:
 
-  | Room | Ore cells | Margin |
+  | Rooms | Found | Median margin |
   |---|---|---|
-  | 1 | 352 / 352 | 294 |
-  | 2 | 589 / 589 (cuts through a lava cave) | 522 |
+  | Land | 25 / 25 | 278 |
+  | Low terrain | 40 / 40 | 244 |
 
+  Three real rooms from that world ship in `examples/` (`real_polA`, `real_polB`, `real_vein_room`).
 - **Uniqueness.** The margin stays flat or grows as the search region grows 31× and beyond, because
   absence scoring suppresses far-away false positives.
 
@@ -268,15 +276,24 @@ precision budget, and every negative result.
 ## Limitations
 
 - **Known seed only.** orereversal localizes a position. It doesn't crack seeds.
+- **Java Edition only.** Bedrock generates ore differently.
 - **Deepslate band.** The search covers Y −64 to −1, where the bit-exact families dominate.
 - **You need a decent-sized observation.** A large carved room is world-unique. A few scattered
   veins are not. As a rule of thumb, aim for hundreds of cells including about 20 or more of the
   sparse families.
+- **Gravel moves.** It is placed suspended at generation and falls once a block update reaches it,
+  so in an explored room its contribution is only a bonus.
 - **The Linux GPU path hasn't run on a GPU yet.** On Ubuntu 24.04 everything builds without warnings,
   and the harness, golden diff and Python solver match Windows exactly. But the matcher itself has only
   been executed on Windows.
-- **Gravel moves.** It is placed suspended at generation and falls once a block update reaches it,
-  so in an explored room its contribution is only a bonus.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `region_dump not found at ...` | Build the harness (`bash harness/build.sh`). The matcher looks for it in `../harness` relative to its own path. `--no-refine` skips it. |
+| `CUDA ... out of memory` although the GPU has free memory (Windows) | Windows backs GPU allocations with system commit. Close memory-heavy programs or pass a smaller `--tile`, e.g. `--tile 128`. |
+| The true location isn't confident or isn't found | Check that caves and other non-stone blocks aren't labeled `bare`, pass `--version` for 1.20+ worlds, and use `--error 1` for positions read from video. |
 
 ## Repository layout
 
@@ -288,7 +305,8 @@ precision budget, and every negative result.
 | [`python/research/`](python/research) | The earlier research matchers that the research log cites. A frozen snapshot, kept for reproducibility. |
 | [`tests/`](tests) | `regress.sh` (byte-for-byte regression against `tests/expected/`) and `bench.sh` (GPU timing). |
 | [`examples/`](examples) | Observation CSVs: synthetic rooms and walls, plus `real_pol*` and `real_vein_room` (rooms extracted from a real 1.18.2 world). |
-| [`docs/`](docs) | Observation format, research log, GPU optimization log, and the CUDA playbook. |
+| [`docs/`](docs) | Observation format, research log, GPU optimization log, the CUDA playbook, and the README image (`img/render_hero.py`). |
+| [`research/`](research) | Accuracy research reports referenced from the research log. |
 
 ## Development
 
@@ -313,3 +331,6 @@ Python with `ruff format`. `python/research/` is excluded from formatting on pur
 ## License
 
 [MIT](LICENSE). cubiomes is distributed under its own MIT license.
+
+orereversal is not affiliated with or endorsed by Mojang Studios or Microsoft. Use it on your own worlds
+or with permission; locating other players from their footage may break a server's rules.
