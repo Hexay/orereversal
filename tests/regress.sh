@@ -71,7 +71,8 @@ $MATCHER 123 -16 15 -16 15 examples/real_vein_room.csv  2>&1 | check real_vein_r
 
 golden_diff() {   # port vs cubiomes for one version: only gravel/copper/iron may differ
   $ORETEST 123 0 7 0 7 -64 -1 "$1" 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/port.csv"
-  $REGION_DUMP 123 "$1" 0 7 0 7 -64 -1 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/ref.csv"
+  $REGION_DUMP 123 "$1" 0 7 0 7 -64 -1 tuff redstone lapis gravel granite copper iron 2>/dev/null \
+    | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/ref.csv"
   diff "$TMP/port.csv" "$TMP/ref.csv" | grep -E '^[<>]' | cut -d, -f1 | LC_ALL=C sort | uniq -c
 }
 golden_diff 1.18 | check golden_diff golden_diff

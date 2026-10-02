@@ -8,19 +8,20 @@ Your extraction tool (world copy / mod) should emit this format.
 family,x,y,z
 ```
 - **family** — one of:
-  - a usable ore family: `tuff, redstone, lapis, gravel, granite, copper, iron`. All but iron are
-    bit-exact vs real worldgen; iron misses a few real blocks (un-simulated ore-vein noise), so treat its
-    margin as a bonus. (NOT diamond/gold/coal — they desync; NOT dirt/clay
-    — contaminated. See ../cuda/README.md "Which ore families".)
+  - a usable ore family: `tuff, redstone, lapis, gravel, granite, copper, iron, diamond`. Tuff, redstone,
+    lapis and granite carry the search; gravel, copper and iron miss a few real blocks, so treat their
+    margin as a bonus. `diamond` only counts when the seed placed a *buried* diamond there (the only
+    diamond config that doesn't desync); other diamonds are simply not credited. (NOT gold/coal — they
+    desync; NOT dirt/clay — contaminated. See ../cuda/README.md "Which ore families".)
   - `bare` — an exposed cell that is **plain `stone` or `deepslate` only**. These enable SOFT ABSENCE
     scoring: a candidate location that predicts an ore where you saw `bare` is penalized, sharply cutting
     false positives (esp. via the dense families).
 
   **Emit rule (two allowlists — everything else is omitted):**
-  1. block is a usable family (`tuff/redstone/lapis/gravel/granite/copper/iron`, incl. deepslate
+  1. block is a usable family (`tuff/redstone/lapis/gravel/granite/copper/iron/diamond`, incl. deepslate
      variants) → emit that family.
   2. block is `stone` or `deepslate` → emit `bare`.
-  3. **anything else — air, lava, water, gold/coal/diamond ore, andesite/diorite — OMIT** (don't
+  3. **anything else — air, lava, water, gold/coal ore, andesite/diorite — OMIT** (don't
      write a row). Cells you never exposed are likewise omitted (= unobserved, no info).
 
   Why omit instead of marking `bare`: cubiomes assumes every cell is solid stone, so it predicts ores

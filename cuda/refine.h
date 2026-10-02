@@ -48,7 +48,7 @@ static void generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX
                             blockKey(positions[k].x, positions[k].y, positions[k].z));
             }
     runRegionDump(opt.seed, opt.version, chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ,
-                  "gravel copper iron +veins",
+                  "gravel copper iron diamond +veins",
                   [&](int family, int x, int y, int z) { candidates[family].insert(blockKey(x, y, z)); });
 }
 
@@ -119,7 +119,9 @@ static std::vector<Result> refine(const std::vector<Result>& top, const Observat
                                   int separation) {
     // The refine-only families can add at most this much to any hypothesis, so hypotheses further than
     // this below the best can't overtake it. Always refine at least 8.
-    int maxGain = obs.familyCounts[F_GRAVEL] + obs.familyCounts[F_COPPER] + obs.familyCounts[F_IRON];
+    int maxGain = 0;
+    for (int family = GPU_FAMILY_COUNT; family < F_COUNT; family++)
+        maxGain += obs.familyCounts[family];
     int count = std::min((int)top.size(), opt.refineCount);
     float best = top.empty() ? 0 : top[0].score;
     for (int t = 8; t < count; t++)

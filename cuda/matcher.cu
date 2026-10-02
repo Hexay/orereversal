@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     }
     std::vector<Result> refined = refine(top, obs, opt, separation);
     char title[96];
-    snprintf(title, sizeof(title), "(refined top %d with all 7 families incl. gravel/copper/iron)",
+    snprintf(title, sizeof(title), "(refined top %d with all 8 families incl. gravel/copper/iron/diamond)",
              (int)std::min((size_t)opt.refineCount, top.size()));
     printRanking(title, refined, (int)obs.ore.size(), separation, "CONFIDENT (unique)");
     return 0;

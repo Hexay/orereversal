@@ -9,7 +9,7 @@ REGION_DUMP = os.path.join(ROOT, "harness", "region_dump" + (".exe" if os.name =
 
 # Families an observation may name. Ordered: where candidates of two families overlap, the later one
 # wins in family_at(), so labels are deterministic.
-USABLE = ("tuff", "gravel", "granite", "copper", "iron", "redstone", "lapis")
+USABLE = ("tuff", "gravel", "granite", "copper", "iron", "diamond", "redstone", "lapis")
 
 
 def region_dump(

@@ -108,7 +108,8 @@ Real worldgen couples ore to terrain in three ways. Only some families survive a
 | tuff, redstone, lapis, granite | **GPU, bit-exact** | Discard-free. These carry the search. Refine adds the tuff that 1.18+ iron ore veins leave between y −60 and −8. |
 | gravel, copper | Refine (CPU) | Bit-exact via cubiomes, but they need the surface-height gate that the GPU port doesn't have. Gravel falls once disturbed, so treat it as a bonus. |
 | iron | Refine (CPU) | Ore features plus 1.18+ iron ore veins. A few real blocks are still missed, so treat it as a bonus. |
-| diamond, gold, coal | **Excluded** | `discardChanceOnAirExposure > 0` desyncs the RNG against real terrain. |
+| diamond | Refine (CPU) | Only *buried* diamond is exact, so an observed diamond counts when the seed placed a buried diamond there and is ignored otherwise. |
+| gold, coal | **Excluded** | `discardChanceOnAirExposure > 0` desyncs the RNG against real terrain. |
 
 ## Requirements
 

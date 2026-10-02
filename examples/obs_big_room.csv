@@ -2052,9 +2052,9 @@ bare,14,1,32
 bare,14,2,-1
 bare,14,2,32
 bare,14,3,-1
-tuff,14,3,32
+diamond,14,3,32
 bare,14,4,-1
-tuff,14,4,32
+diamond,14,4,32
 bare,14,5,-1
 tuff,14,5,32
 bare,14,6,-1
@@ -2152,9 +2152,9 @@ bare,15,1,32
 bare,15,2,-1
 tuff,15,2,32
 bare,15,3,-1
-tuff,15,3,32
+diamond,15,3,32
 bare,15,4,-1
-tuff,15,4,32
+diamond,15,4,32
 bare,15,5,-1
 tuff,15,5,32
 bare,15,6,-1

@@ -37,9 +37,9 @@ The matcher is a single translation unit: `matcher.cu` includes everything else.
    the occupancy grid for tuff, redstone, lapis and granite. Every candidate of the rarest observed
    family becomes an anchor. `kScoreHypotheses` tests each anchor in 8 orientations for presence and
    soft absence. Hypotheses that pass the `--minfrac` filter are merged into a global top-K.
-2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 7 families. Gravel, copper
-   and iron come from `region_dump`. Pass 2 stops at the point where gravel, copper and iron
-   together can no longer change the ranking. It runs in parallel with OpenMP.
+2. **Pass 2 (CPU refine).** The top-K hypotheses are re-scored with all 8 families. Gravel, copper,
+   iron, buried diamond and ore-vein blocks come from `region_dump`. Pass 2 stops at the point where
+   the refine-only families together can no longer change the ranking. It runs in parallel with OpenMP.
 
 `--legacy-gen` swaps in the original one-thread-per-chunk `kGenerateLegacy`. It is the bit-exact
 reference that every optimization is validated against.
@@ -70,7 +70,8 @@ position-only noise, before ore features run. `region_dump +veins` models them w
 interpolation, and refine adds their tuff and iron to the candidates. The GPU pass doesn't generate them,
 so in pass 1 vein tuff is a presence miss, absorbed by `--minfrac`. On a real room crossing a vein this took
 the true location from 190/269 to 243/269 cells (margin 115 → 183, `examples/real_vein_room.csv`).
-| diamond, gold, coal | Excluded | Air-exposure discard (see 2 above) |
+| diamond (buried only) | CPU refine via `region_dump.exe` | Discard 1.0 rolls no RNG, so it's exact. Diamonds from the other diamond configs aren't credited |
+| gold, coal, other diamond | Excluded | Air-exposure discard (see 2 above) |
 
 ## Validation
 

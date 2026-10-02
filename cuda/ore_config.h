@@ -13,11 +13,13 @@
 #endif
 
 // The four GPU-generated families come first so a family id doubles as its occupancy-grid slot.
-enum { F_TUFF = 0, F_REDSTONE, F_LAPIS, F_GRANITE, F_GRAVEL, F_COPPER, F_IRON, F_COUNT };
+// diamond means buried diamond only: exact (air-exposure discard 1.0 rolls no RNG), unlike the other
+// diamond configs, so an observed diamond those placed is simply not credited.
+enum { F_TUFF = 0, F_REDSTONE, F_LAPIS, F_GRANITE, F_GRAVEL, F_COPPER, F_IRON, F_DIAMOND, F_COUNT };
 #define GPU_FAMILY_COUNT 4
 
 static const char* const FAMILY_NAMES[F_COUNT] = {"tuff",   "redstone", "lapis", "granite",
-                                                  "gravel", "copper",   "iron"};
+                                                  "gravel", "copper",   "iron",  "diamond"};
 
 // Versions whose ore configs differ. 1.20 inserted ore_diamond_medium into the underground-ores step,
 // shifting the decorator index of every later feature (lapis, buried lapis, copper) by one.

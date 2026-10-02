@@ -734,8 +734,13 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
   the ungated port is barely worse for lapis (88 vs 50 misses of 5837 deep blocks) and BETTER for lower
   granite (0 vs 30 ghosts: cubiomes' approximation wrongly gates 5/909 veins). ~300 LOC of FP64 noise for
   ~0.6pp lapis. Cheaper if ever needed: try both gate outcomes at refine for borderline veins.
-- OPEN, ranked: buried diamond (discard 1.0, exact) as a one-sided family; lower diorite/andesite
-  (identical to lower granite, reach only y -6..-1); rarity weighting (+7%, keep iron capped); GPU vein port.
+- BURIED DIAMOND (done, refine family `diamond`): discard 1.0 rolls no RNG, so it's exact. Real rooms: vein
+  room 6/8 observed diamonds are buried-diamond candidates (others came from desyncing configs and simply
+  aren't credited), old room 0/1; buried diamond predicts ore on 0 of 7052 real bare cells. Vein room incl.
+  diamonds: 249/277, margin 183 -> 189. Index 20 > tuff's 8, so it overwrites tuff (synthetic labels follow).
+- SKIPPED: lower diorite/andesite (identical to lower granite but only reach y -6..-1 in the band; each would
+  cost a GPU occupancy slot); rarity weighting (+7%, but weights non-exact iron heavily).
+- OPEN: GPU port of the vein model (vein tuff is a pass-1 presence miss today); evidence-branched gravel gate.
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU

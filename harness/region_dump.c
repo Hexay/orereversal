@@ -38,6 +38,7 @@ static const FamilyOre ORES[] = {
     {MiddleIronOre, "iron"},
     {SmallIronOre, "iron"},
     {UpperIronOre, "iron"},
+    {BuriedDiamondOre, "diamond"},
 };
 #define ORE_COUNT ((int)(sizeof(ORES) / sizeof(ORES[0])))
 
