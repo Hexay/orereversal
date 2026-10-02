@@ -1,6 +1,6 @@
 # Ore observation format
 
-Both solvers (`cuda/matcher.exe` and `python/solve.py`) consume a CSV of observed ore/stone-type blocks extracted from a target build.
+Both solvers (`cuda/matcher` and `python/solve.py`) consume a CSV of observed ore/stone-type blocks extracted from a target build.
 Your extraction tool (world copy / mod) should emit this format.
 
 ## File: CSV, one cell per line
@@ -9,8 +9,8 @@ family,x,y,z
 ```
 - **family** — one of:
   - a usable ore family: `tuff, redstone, lapis, gravel, granite, copper, iron, diamond`. Tuff, redstone,
-    lapis and granite carry the search; gravel, copper and iron miss a few real blocks, so treat their
-    margin as a bonus. `diamond` only counts when the seed placed a *buried* diamond there (the only
+    lapis and granite carry the search. Copper and iron miss a few real blocks, and gravel falls once a
+    block update reaches it, so treat their margin as a bonus. `diamond` only counts when the seed placed a *buried* diamond there (the only
     diamond config that doesn't desync); other diamonds are simply not credited. (NOT gold/coal — they
     desync; NOT dirt/clay — contaminated. See ../cuda/README.md "Which ore families".)
   - `bare` — an exposed cell that is **plain `stone` or `deepslate` only**. These enable SOFT ABSENCE
@@ -25,7 +25,7 @@ family,x,y,z
      write a row). Cells you never exposed are likewise omitted (= unobserved, no info).
 
   Why omit instead of marking `bare`: cubiomes assumes every cell is solid stone, so it predicts ores
-  inside cells that are actually cave air/lava or a desync ore (gold/coal/diamond). Calling those `bare`
+  inside cells that are actually cave air/lava or a desync ore (gold/coal). Calling those `bare`
   penalizes the TRUE location for a prediction that's only "wrong" because cubiomes can't see the cave.
   Real-world test: a room cutting a lava cave self-penalized the truth by 30 under the all-else-bare rule;
   omitting fixed it (research-log.md P6).
@@ -36,6 +36,12 @@ family,x,y,z
   - Axes: x = world-east, z = world-south, y = up — but since orientation is brute-forced, any consistent
     right-handed-ish horizontal labeling works; the vertical axis (y) must be correct (gravity is not
     rotated).
+
+## Parsing
+- The `family,x,y,z` header is optional. Blank lines and lines starting with `#` are skipped.
+- Write fields without spaces (`lapis,0,-49,0`); the matcher doesn't trim them.
+- Rows naming anything other than a usable family or `bare` are skipped by both solvers.
+- At least one `tuff`, `redstone`, `lapis` or `granite` cell is required: those families seed the search.
 
 ## What to include
 - **Every** exposed usable-family block you can identify, not just the rare ones. The dense families

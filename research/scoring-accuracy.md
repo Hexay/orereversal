@@ -1,5 +1,11 @@
 # Scoring accuracy under positional noise (2026-10-01)
 
+> **Status (2026-10-02)** — adopted in P8 (`docs/research-log.md`): #1 re-centring ±e (`cuda/refine.h`,
+> `python/solve.py`); #2 solve.py presence dilates by e, not 2e; #4 `--abs-error A` is now erosion
+> (`cuda/refine.h` `oreThroughout`, solve.py `--abs-error`), default 0; #5 margin is measured against the
+> best result more than max(2e+1, footprint) away (`cuda/matcher.cu`, `cuda/report.h`). #3 rarity
+> weighting skipped. `research/scratch/*` cited below is local-only (gitignored), not in the repo.
+
 CPU-only study of how the solvers score noisy observations. No GPU was run; GPU behaviour is emulated
 (presence tolerance ±e Chebyshev, top-K dedup separation 2e+1, same anchor-cell choice).
 
@@ -43,7 +49,7 @@ CPU-only study of how the solvers score noisy observations. No GPU was run; GPU 
    - Bare cells jittered like ore (±e): exact and erode-1 have about the same margin (e=2: 249 vs 254
      at R=8, 242 vs 251 at R=13; e=1: 373 vs 347). Erode-1 recovers the exact origin 5/5 vs 2/5 for
      exact at e=2, because a misread bare cell landing on a true ore edge no longer counts.
-   - Dilate-1 (the current `--abs-error 1` semantics) is the worst option everywhere: e=2 margin 121
+   - Dilate-1 (the `--abs-error 1` semantics when this was written; now erosion, see Status) is the worst option everywhere: e=2 margin 121
      (min 45), origin exact 0/5, truth absHits 678.
    - Absence off: 191 (e=2) / 282 (e=1). Absence still adds ~30% even with noisy bare cells.
    - Weight 0.5: no better than 1 (243 vs 249).

@@ -187,6 +187,7 @@ lapis and copper, so results for a 1.20+ world are wrong without it.
 | `--no-refine` | | Run GPU pass 1 only (4 families). |
 | `--anchor-family F` | rarest | GPU family (`tuff`, `redstone`, `lapis`, `granite`) whose candidates seed the hypotheses. By default it's the rarest observed, and a lapis-anchored result that isn't confident is retried on redstone or granite. |
 | `--legacy-gen` | | Use the original one-thread-per-chunk generator. This is the bit-exact reference and runs about 3× slower. |
+| `--no-gate` | | Debugging: generate every GPU family in pass 1, even ones the observation doesn't need. |
 
 ### Observation format
 
@@ -256,8 +257,9 @@ is in [`docs/gpu-optimization.md`](docs/gpu-optimization.md), and the reusable m
 
 ## Validation
 
-- **Generator.** `cuda/oretest.c` produces zero position diffs against cubiomes for tuff, redstone,
-  lapis, granite and iron-vein tuff.
+- **Generator.** The port produces zero position diffs against cubiomes for tuff, redstone, lapis and
+  granite on land, and for iron-vein tuff on both the host and the GPU. In low terrain, lapis follows
+  neither exactly, which refine handles (see Ore families).
 - **Real world.** 65 rooms (28 × 15 × 28 blocks) carved from a real 1.18.2 world (seed 123), 40 of them
   in low terrain where the surface gate matters, all ranked first:
 
@@ -300,7 +302,7 @@ precision budget, and every negative result.
 | Path | Contents |
 |---|---|
 | [`cuda/`](cuda) | **The GPU matcher.** A portable host/device port of cubiomes' 1.18 ore generation (`oregen.h` and friends) and the tiled two-pass localizer built on it. [`cuda/README.md`](cuda/README.md) maps every file. |
-| [`harness/`](harness) | C tools that dump ground-truth ore candidates from cubiomes. The refine pass calls `region_dump`. |
+| [`harness/`](harness) | C tools that dump ground-truth ore candidates from cubiomes. The refine pass calls `region_dump`; `ore_dump` is the original per-chunk validation tool. |
 | [`python/`](python) | Python CPU reference: `solve.py` (the solver), `make_observation.py` and `gen_wall.py` (synthetic observations), `observation.py` (CSV reading and writing) and `candidates.py` (the `region_dump` wrapper). |
 | [`python/research/`](python/research) | The earlier research matchers that the research log cites. A frozen snapshot, kept for reproducibility. |
 | [`tests/`](tests) | `regress.sh` (byte-for-byte regression against `tests/expected/`) and `bench.sh` (GPU timing). |

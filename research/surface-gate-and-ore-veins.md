@@ -3,8 +3,15 @@
 Seed 123, real 1.18.2 world `gt/world`, 441 fully generated interior chunks (-10..10 squared), all Y.
 Probe: `research/surface-gate-probe/` (`vein_probe.c` links cubiomes; `analyze.py` decodes the .mca
 files directly). Raw numbers: `research/surface-gate-probe/output.txt`. CPU only, no GPU used.
+`analyze.py` needs `anvil-parser2` (imported as `anvil`) and `numpy`, plus a local `gt/world` (gitignored, not in the repo).
 
 ## Verdict (ranked)
+
+> **Status (2026-10-02)** — see `docs/research-log.md` P8-P10. #1 done: CPU in P8 (`harness/ore_veins.h`,
+> region_dump `+veins`), GPU iron-vein tuff in P9 (`cuda/iron_veins.h`, separate `kIronVeins` kernel; iron
+> itself stays refine-only). #2 tried and reverted in P8 (net negative: competitors gain about as much).
+> #3 decided against in P8. #4 done: P8 gravel/copper (window ±12, not the T=24 above), P10 lapis (window
+> startY-surface in [0,12]); both in `harness/ore_branch.h`.
 
 | # | Build | Gain | Effort | Bit-exactness risk |
 |---|---|---|---|---|
@@ -141,7 +148,8 @@ The interpolation order used (y, then x, then z, as in vanilla NoiseInterpolator
 |toggle corner| + taper < 0.4. That bound is safe because a lerp can't exceed its corner maximum, and it rejects most
 cells. On the CPU: add a `veins` family to `region_dump.c` (it already links cubiomes' `sampleDoublePerlin`/`xAtPos`)
 that emits tuff/iron/raw_iron in the band, and map it into refine's `candidates[F_TUFF]`/`[F_IRON]`. On the GPU: write
-vein tuff into the tuff occupancy in kGenerate, so pass 1 also stops losing it.
+vein tuff into the tuff occupancy (as built in P9: a separate `kIronVeins` kernel, not kGenerate), so pass 1
+also stops losing it.
 
 ## Reproduce
 ```sh

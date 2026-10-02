@@ -3,7 +3,7 @@ import anvil, os, collections, math, sys
 import numpy as np
 
 S = os.path.dirname(os.path.abspath(__file__))
-W = r"C:/Users/Hexay/oreReversal/gt/world/region"
+W = os.path.join(S, "..", "..", "gt", "world", "region")
 LO, HI = -10, 10  # interior chunks (all neighbours fully generated)
 
 TERRAIN_KEYS = ("stone", "deepslate", "dirt", "grass_block", "sand", "gravel", "granite", "diorite", "andesite",

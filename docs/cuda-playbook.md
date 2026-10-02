@@ -34,7 +34,8 @@ Rules that keep it portable:
   ```
 - **Feature flags for the parts you can't port bit-exactly.** Anything that couples to an
   un-ported subsystem (terrain/surface noise, secondary noise systems) goes behind a
-  `#define` (e.g. `SKIP_SURFACE` vs `WITH_SURFACE` requiring a host-supplied hook). Document
+  `#define` (hypothetical example, not flags in this repo: `SKIP_SURFACE` vs `WITH_SURFACE` requiring a
+  host-supplied hook). Document
   exactly which inputs each flag changes.
 - Hand-transcribe constants from the reference source with the source line cited in a comment.
   Transcription errors are the #1 source of desync — make them auditable.
@@ -89,7 +90,7 @@ lookup) — never an O(K²) scan.
 This is a loop, run with `ncu` (enable: NVIDIA CP → Developer → Manage GPU Performance Counters
 → allow all users):
 
-1. **Always keep a `--legacy` reference path** — the slow, obviously-correct kernel. Never
+1. **Always keep a legacy reference path** (here `--legacy-gen`) — the slow, obviously-correct kernel. Never
    delete it. Every optimization is validated **byte-identical** against it (and against the
    golden diff test).
 2. **Profile before cutting.** Find the actual bottleneck; don't guess. Record the per-kernel
@@ -130,7 +131,7 @@ echo === building host driver ===
 cl /nologo /O2 /fp:strict <driver>.c /Fe:<driver>.exe >nul
 echo host_exit=%ERRORLEVEL%
 echo === building device matcher ===
-nvcc -O2 -arch=sm_89 -Xcompiler /openmp -Xptxas -v <matcher>.cu -o <matcher>.exe
+nvcc -O2 -std=c++17 -arch=sm_89 -Xcompiler /openmp -Xptxas -v <matcher>.cu -o <matcher>.exe
 echo device_exit=%ERRORLEVEL%
 ```
 - `/fp:strict` on the host driver — float contraction must match the reference for bit-exactness.
@@ -175,4 +176,4 @@ echo device_exit=%ERRORLEVEL%
 - [ ] Tiled two-pass GPU→CPU pipeline.
 - [ ] Optimize: profile → attack FP64 (div-free, provable mixed precision) → locality (Morton)
       → each step byte-identical vs legacy.
-- [ ] NOTES.md: wins AND dead-ends with dates and reasons.
+- [ ] Research log (here `docs/research-log.md`): wins AND dead-ends with dates and reasons.

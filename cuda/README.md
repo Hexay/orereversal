@@ -1,7 +1,8 @@
 # cuda/: the GPU matcher
 
 A CUDA port of cubiomes' 1.18+ ore generation, plus the two-pass localizer built on it. It is the GPU
-version of [`python/solve.py`](../python/solve.py) and uses the same scoring. For build and usage, see
+version of [`python/solve.py`](../python/solve.py), which uses the same scoring but has no `--minfrac`
+pre-filter or surface-gate variants. For build and usage, see
 the [top-level README](../README.md#quick-start).
 
 ## Files
@@ -98,12 +99,14 @@ lapis-anchored result that isn't confident is retried anchored on redstone or gr
 
 ## Validation
 
-**Bit-exact generation.** For 64 chunks in the deepslate band, tuff, redstone, lapis and granite show
-zero position diffs. Only gravel and copper differ, because they need the surface gate.
+**Bit-exact generation.** For 64 land chunks in the deepslate band, tuff, redstone, lapis and granite
+show zero position diffs. Only gravel and copper differ, because they need the surface gate. In low
+terrain lapis differs too (see the known gap above; `golden_diff_low` pins it).
 
 ```sh
-./oretest.exe 123 0 7 0 7 -64 -1 | tail +2 | sort > port.csv
-../harness/region_dump.exe 123 1.18 0 7 0 7 -64 -1 | tail +2 | sort > ref.csv
+F="tuff redstone lapis gravel granite copper"
+./oretest 123 0 7 0 7 -64 -1 | tail -n +2 | sort > port.csv              # .exe on Windows
+../harness/region_dump 123 1.18 0 7 0 7 -64 -1 $F | tail -n +2 | sort > ref.csv
 diff port.csv ref.csv   # only gravel/copper lines
 ```
 

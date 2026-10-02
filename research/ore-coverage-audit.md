@@ -1,5 +1,23 @@
 # Ore coverage audit (2026-10-01)
 
+> **Status (2026-10-02)** — findings below are kept as written; see `docs/research-log.md` P8-P10.
+> 1. Fixed (P8). `cuda/ore_config.h` carries `index[ERA_COUNT]` (1.18-1.19 / 1.20+); the matcher takes
+>    `--version` (`cuda/options.h`) and passes it to region_dump (`cuda/region_dump.h` `runRegionDump`);
+>    `python/gen_wall.py` passes `args.version`. The "hardcodes 1.18" references in item 1 and the
+>    Evidence section are stale, except `python/research/matcher.py:10` (research script, still 1.18).
+>    The "GPU OK for 1.18-1.19" entries in the version table are stale: lapis/buried_lapis/copper/
+>    large_copper are now correct for 1.20+ too.
+> 2. Scope still holds; vanilla 1.21.x index layout is still not verified against a real 1.21 world.
+> 3. GPU surface-gate port decided against (P8): vs the real world the ungated port is barely worse for
+>    lapis and better for lower granite. Refine branches lapis gate outcomes (P10, window startY-surface
+>    in [0,12]); pass 1 retries a non-CONFIDENT lapis-anchored search on redstone/granite (P9). Pass-1
+>    lapis stays ungated; `tests/regress.sh` golden_diff_low pins the divergence.
+> 4. Adopted (P8): refine family `diamond` (buried diamond only).
+> 5. Skipped (P8): lower diorite/andesite only reach y -6..-1 and would each cost a GPU occupancy slot.
+> 6. Still open (band not extended).
+> 7. Vein tuff/iron modelled: CPU in P8 (`harness/ore_veins.h`, region_dump `+veins`), GPU iron-vein tuff
+>    in P9 (`cuda/iron_veins.h`, `kIronVeins`). Large copper in deep_dark vs vanilla still unverified.
+
 Scope: does the GPU generator (`cuda/ore_config.h`, `cuda/oregen.h`) and the CPU refine
 (`harness/region_dump.c` via `cuda/region_dump.h`) match cubiomes (xpple fork @62007b8) across
 MC 1.18–1.21, and which unused overworld ore types could add signal. Line refs are `cubiomes/finders.c`

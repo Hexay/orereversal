@@ -1,12 +1,13 @@
 # GPU optimization log
 
-How the GPU matcher in [`cuda/`](../cuda) got from ~48 min to ~4 min for a 300k × 300k-block search,
-including the measured dead ends. Kept as history; the current design is summarized in
-[`cuda/README.md`](../cuda/README.md). Per-phase context lives in [`research-log.md`](research-log.md).
+How the GPU matcher in [`cuda/`](../cuda) got from ~48 min to under 5 min for a 300k × 300k-block search
+(current projection ~4.6 min; 29.2M chunks `--no-refine` ~23 s, see the README), including the measured
+dead ends. Kept as history; the current design is summarized in [`cuda/README.md`](../cuda/README.md). Per-phase context lives in [`research-log.md`](research-log.md).
 
 The log uses the names the code had at the time. Since the 2026-10 readability refactor: `kSetup` →
 `kSetupVeins`, `kFill` → `kFillVeins`, `kGenerate` → `kGenerateLegacy`, `kAnchorKey` → `kMortonKeys`,
-`kScore` → `kScoreHypotheses`, `occ` → the occupancy grid (`OccupancyGrid`), `bitSet` → `seen`.
+`kScore` → `kScoreHypotheses`, `occ` → the occupancy grid (`OccupancyGrid`), `bitSet` → `seen`,
+`gravelMax` → `maxGain` (`cuda/refine.h`).
 
 ## World-scale (P3.3)
 Tiled so memory is bounded for ANY region size (validated to 30M chunks; ~7 min projected for 300k x 300k
@@ -14,8 +15,9 @@ with mixed-precision gen + Morton-sorted kScore, vs ~9 min mixed-only, ~18 min F
 - PASS 1 (GPU, per tile): generate 4 bit-exact families -> reused occupancy bitmask; enumerate anchor
   candidates in the tile interior; score presence + soft absence with an aggressive presence pre-filter
   (`--minfrac`, default 0.5) and per-cell early-termination. Survivors merge into a global top-K.
-- PASS 2 (CPU refine): re-score the top-K with all 7 families (gravel/copper/iron from region_dump.exe). Pruned
-  to only contenders within `gravelMax` of the top (gravel can add at most its cell count) -> ~few windows.
+- PASS 2 (CPU refine): re-score the top-K with all 8 families (gravel/copper/iron/diamond, and since P10
+  lapis via `+branch`, from region_dump.exe). Pruned to only contenders within `maxGain` of the top (the
+  observed cell count of the refine-only families plus lapis, `cuda/refine.h`) -> ~few windows.
 - Perf (RTX 4070 Ti SUPER, mixed-precision gen + Morton-sorted kScore): refine fixed ~8s. 30M chunks:
   gen 27.3s + score 7.2s = 34.5s wall (was 92s at the start of this opt arc). Generation is ~80% of wall,
   kScore ~20% (Morton anchor sort cut it ~2.1x). Tile >320 risks a Windows TDR kill -> clamped.
@@ -109,8 +111,9 @@ Findings, in order:
   450). Build adds `-Xcompiler /openmp`. Remaining irreducible refine cost: gravel vein-fill (size 33 x
   repeat 14 — RNG order requires generating the high veins too) and the per-spawn region_dump init.
 - GPU surface-gate port (1.18 climate-depth noise) would let gravel/copper/iron be GPU-generated, removing
-  the refine region_dump dependency (iron would also need the ore-vein noise). Not needed now: refine is
-  bounded to the top contenders.
+  the refine region_dump dependency. The ore-vein noise is now ported (P9: iron-vein tuff in `kIronVeins`);
+  iron itself is still refine-only. Not needed now: refine is bounded to the top contenders, and the gate
+  port was decided against in P8 (research-log).
 - DONE: host top-K merge (was ~14% of world-scale wall, 2nd after kFill). The per-tile spatial NMS dedup was
   O(topk^2) (topk=4096 x 484 tiles ~ 10^10 cmps). Replaced the O(K^2) scan with a bucket grid (cell=sep,
   3x3x3 neighbor lookup, hashed key, distance-verified -> byte-identical ranking). 30M-chunk host overhead

@@ -1,4 +1,4 @@
-// ore_dump — P1 validation harness.
+// ore_dump — P1 validation harness (a research tool; the pipeline uses region_dump).
 // Dumps cubiomes' predicted ore *candidate* block positions for a given
 // seed / MC version / chunk. Output is CSV (ore,index,x,y,z) sorted for stable
 // diffing against ground truth. These are RNG candidate positions only: cubiomes

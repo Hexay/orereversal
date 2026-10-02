@@ -3,7 +3,9 @@
 // pass and python/candidates.py call it; tests/regress.sh diffs cuda/oretest against it.
 //
 // Usage: region_dump <seed> <version> <cxMin> <cxMax> <czMin> <czMax> [yMin yMax] [family ...] [+veins]
-//   Y band defaults to -64..-1. Families: tuff redstone lapis gravel granite copper iron (default: all).
+//                    [+branch]
+//   Y band defaults to -64..-1. Families: tuff redstone lapis gravel granite copper iron diamond (buried
+//   diamond only); default: all.
 //   +veins also emits ore-vein blocks (ore_veins.h) under their family: tuff/iron from iron veins,
 //   granite/copper from copper veins. Off by default so the output stays comparable with cuda/oretest.
 //   +branch emits both outcomes of borderline surface-gate decisions for gravel, copper and lapis
@@ -25,8 +27,8 @@ typedef struct {
     const char* family;
 } FamilyOre;
 
-// Ore types whose candidates match real worldgen in the deepslate band (see cuda/README.md). Iron also
-// gets the separate ore-vein noise in real worldgen, which isn't simulated, so a few real blocks are missed.
+// Ore types whose candidates match real worldgen in the deepslate band (see cuda/README.md). Ore veins
+// (iron and copper veins) are separate noise, emitted with +veins.
 static const FamilyOre ORES[] = {
     {TuffOre, "tuff"},
     {RedstoneOre, "redstone"},
@@ -56,12 +58,12 @@ static int parseVersion(const char* s) {
 
 // Prints the chunk's ore-vein blocks in [yMin, yMax]; raw ore blocks have no family and are skipped.
 static long emitVeinBlocks(OreVeinParameters* p, int cx, int cz, int yMin, int yMax) {
-    if (yMax < VEIN_MIN_Y || yMin > 50)
+    if (yMax < VEIN_MIN_Y || yMin >= VEIN_END_Y)
         return 0;
     static ChunkVeinNoise noise; // ~30 KB; static keeps it off the stack
     initChunkVeinNoise(&noise, p, cx, cz);
     long count = 0;
-    for (int y = yMin < VEIN_MIN_Y ? VEIN_MIN_Y : yMin; y <= yMax && y <= 50; y++)
+    for (int y = yMin < VEIN_MIN_Y ? VEIN_MIN_Y : yMin; y <= yMax && y < VEIN_END_Y; y++)
         for (int x = cx * 16; x < cx * 16 + 16; x++)
             for (int z = cz * 16; z < cz * 16 + 16; z++) {
                 int isCopper, kind = oreVeinAt(p, &noise, cx, cz, x, y, z, &isCopper);
@@ -124,7 +126,8 @@ static int looksNumeric(const char* s) {
 int main(int argc, char** argv) {
     if (argc < 7) {
         fprintf(stderr,
-                "usage: %s <seed> <version> <cxMin> <cxMax> <czMin> <czMax> [yMin yMax] [family ...]\n",
+                "usage: %s <seed> <version> <cxMin> <cxMax> <czMin> <czMax> [yMin yMax] [family ...] "
+                "[+veins] [+branch]\n",
                 argv[0]);
         return 2;
     }

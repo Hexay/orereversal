@@ -9,9 +9,9 @@ someone's base/mine), find **where in the world** (chunk X/Z) that ore pattern o
 brute-force / signature search over chunk space. Analogous to bedrock cracking, but for location not seed.
 
 ## Environment (verified 2026-06-17)
-- GPU: RTX 4070, 16 GB, driver supports CUDA 12.9. Good for this.
-- **CUDA toolkit NOT installed** (`nvcc` missing) and **no MSVC `cl`**. To build CUDA we'll need:
-  NVIDIA CUDA Toolkit + Visual Studio Build Tools (host compiler). Setup task before any kernel work.
+- GPU: RTX 4070 Ti SUPER, 16 GB, driver supports CUDA 12.9. Good for this.
+- At the time, the CUDA toolkit and MSVC weren't installed (both were set up before P3; see README
+  Requirements for today's toolchain).
 - git available.
 
 ## How ore gen works (the parts that matter)
@@ -704,7 +704,7 @@ exact; if bare cells are misread too, pass --abs-error and expect a shortlist.
 OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy anchor), the GPU +-e.
 (Closed in P8.)
 
-## P8 — accuracy pass (2026-10-01/02). Details: research/*.md (untracked agent reports).
+## P8 — accuracy pass (2026-10-01/02). Details: research/*.md (agent reports).
 - TILE-MARGIN RECALL BUG (fixed): the GPU tile margin was maxExtent/16+2 chunks but hypotheses probe up to
   2*maxExtent from the anchor for centred observations. Worst-case anchor near a tile edge kept 1144/1497
   GPU cells. Margin now = ceil(anchorReach/16)+1 chunks -> 1497/1497 at every tile size.
@@ -806,8 +806,8 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
   Real rooms show few lapis cells, so the cleaner lapis barely moves rankings; the pass-1 anchor gap (P9
   retry) remains, since the GPU port is still ungated.
 
-## Overall status
-Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU
-matcher validated end-to-end on real data (P3). Remaining:
-**P3 (GPU port** for world-scale search SPEED — same format/logic; toolchain now installed) and the user's
-extraction mod (emits observation-format.md incl. `bare` cells).
+## Overall status (2026-10-02)
+DONE: GPU matcher (P3) with pass 1 on tuff/redstone/lapis/granite + iron-vein tuff (P9); refine on all 8
+families with surface-gate branching for gravel/copper (P8) and lapis (P10); lapis-anchor retry (P9).
+65/65 real rooms carved from gt/world rank first. Regression: tests/regress.sh.
+REMAINING: the extraction mod (emits observation-format.md incl. `bare` cells); a GPU run on Linux.
