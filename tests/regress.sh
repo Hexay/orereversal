@@ -69,14 +69,18 @@ $MATCHER 123 -16 15 -16 15 examples/real_polA.csv       2>&1 | check real_polA r
 $MATCHER $REGION "$TMP/room_120.csv" --version 1.20     2>&1 | check room_120 room_120
 $MATCHER 123 -16 15 -16 15 examples/real_vein_room.csv  2>&1 | check real_vein_room real_vein_room
 
-golden_diff() {   # port vs cubiomes for one version: only gravel/copper/iron may differ
-  $ORETEST 123 0 7 0 7 -64 -1 "$1" 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/port.csv"
-  $REGION_DUMP 123 "$1" 0 7 0 7 -64 -1 tuff redstone lapis gravel granite copper iron 2>/dev/null \
+golden_diff() {   # golden_diff <version> [chunk box]: per-family count of blocks where port != cubiomes
+  local box=${2:-"0 7 0 7"}
+  $ORETEST 123 $box -64 -1 "$1" 2>/dev/null | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/port.csv"
+  $REGION_DUMP 123 "$1" $box -64 -1 tuff redstone lapis gravel granite copper iron 2>/dev/null \
     | tr -d '\r' | tail -n +2 | LC_ALL=C sort > "$TMP/ref.csv"
   diff "$TMP/port.csv" "$TMP/ref.csv" | grep -E '^[<>]' | cut -d, -f1 | LC_ALL=C sort | uniq -c
 }
+# Land: only gravel/copper (surface gate) and iron (not ported) may differ.
 golden_diff 1.18 | check golden_diff golden_diff
 golden_diff 1.20 | check golden_diff_120 golden_diff_120
+# Low terrain: lapis also differs, since the port never applies the surface gate (docs/research-log.md P9).
+golden_diff 1.18 "-16 -9 -16 -9" | check golden_diff_low golden_diff_low
 
 vein_diff() {   # iron-vein tuff (iron_veins.h) vs harness/ore_veins.h: must be identical
   $ORETEST 123 -12 -5 -16 -9 -64 -1 +veins 2>/dev/null | tr -d '\r' | grep '^tuff,' | LC_ALL=C sort > "$TMP/port.csv"

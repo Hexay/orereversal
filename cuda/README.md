@@ -84,9 +84,11 @@ the true location from 190/269 to 243/269 cells (margin 115 → 183, `examples/r
 Pass 1 generates the iron-vein tuff too (`iron_veins.h`, byte-identical to `region_dump +veins`). Without
 it, a room deep in a vein could fall below `--minfrac` and never reach refine (0.4% of random rooms).
 
-**Known gap: surface gate on the GPU families.** The GPU port never gates veins on terrain height. That
-matches real land worlds at least as well as cubiomes' approximation, but in low terrain (6% of chunks
-on seed 123) the two disagree and no real room there has been checked (`docs/research-log.md` P9).
+**Known gap: surface gate on the GPU families.** The GPU port never gates veins on terrain height. On land
+that matches real worlds at least as well as cubiomes' approximation. In low terrain (6% of chunks on seed
+123) lapis disagrees: the port finds 79% of real lapis there, cubiomes 85%, both outcomes together 99%.
+If lapis is the anchor family and its anchor cell is one the port misses, pass 1 never generates the true
+location (`docs/research-log.md` P9).
 
 ## Validation
 

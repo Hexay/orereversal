@@ -1,0 +1,7 @@
+    240 < copper
+  14404 < gravel
+     91 < lapis
+    187 > copper
+  15934 > gravel
+   1431 > iron
+     80 > lapis

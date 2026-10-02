@@ -765,11 +765,18 @@ OPEN: presence tolerance differs between solvers — solve.py dilates 2e (noisy 
 - COST: FP64 is 1/64 rate, so exact evaluation runs behind three FP32 screens that only reject what the
   exact test rejects (corner strength, cell, block strength+ridge; see iron_veins.h). Generation over 512^2
   chunks: legacy 66 ms; naive port 285; screens 121 (pass 1 total ~+20%).
-- OPEN (refines P8's surface-gate decision): the GPU port ignores the surface gate for its four families.
-  Over 64^2 chunks it differs from cubiomes in 245 chunks (6%; lapis +-1100, lower granite 706 blocks),
-  presumably low terrain where a vein starting above the floor is really gated (e.g. buried lapis at y 58,
-  chunk (-9,-12)). P8's real-world check was on land. Synthetic rooms there fail (they use cubiomes as
-  truth); whether REAL rooms do needs a real observation from low terrain.
+- LOW TERRAIN (refines P8's surface-gate decision): the GPU port ignores the surface gate for its four
+  families. Over 64^2 chunks it differs from cubiomes in 245 chunks (6%; lapis +-1100, lower granite 706
+  blocks), low terrain where a vein starting above the floor is really gated (e.g. buried lapis at y 58,
+  chunk (-9,-12)); tuff/redstone never differ. Measured against the REAL gt world in the 158 generated
+  disagreeing chunks (all real deep lapis/granite, ghosts = prediction on real stone/deepslate):
+    lapis   port 424/538 (79%) 220 ghosts | cubiomes 459/538 (85%) 207 | union 534/538 (99%) 333
+    granite port 935/935 401 ghosts       | cubiomes 935/935 548         | union = cubiomes
+  Granite: the port is right (cubiomes' extra granite is never real). Lapis: the real gate agrees with
+  cubiomes for some veins and not others, and BOTH outcomes recover 99% -- gate branching again. The
+  practical risk is pass 1's anchor: with lapis as the anchor family, an anchor cell the port misses
+  (~21% of lapis there) means the truth is never generated (synthetic room 40 above). Not fixed yet.
+  regress.sh golden_diff_low pins today's divergence in chunks -16..-9.
 
 ## Overall status
 Science + full CPU pipeline COMPLETE and validated on REAL worldgen (P6). GPU generator bit-exact + GPU
