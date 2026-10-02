@@ -2,9 +2,7 @@
 
 # orereversal
 
-**A Minecraft coordinate exploit: recover where a screenshot or video was taken from the ore visible in it.**
-
-GPU-accelerated, known-seed world localization from exposed ore, for Minecraft Java Edition 1.18+.
+**Recover where a Minecraft screenshot or video was taken from the ore visible in it.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Minecraft Java 1.18+](https://img.shields.io/badge/Minecraft%20Java-1.18%2B-62B47A)
@@ -15,23 +13,14 @@ GPU-accelerated, known-seed world localization from exposed ore, for Minecraft J
 
 </div>
 
-Ore placement in Minecraft is fully determined by the world seed, so the pattern of ore exposed in a
-wall is a fingerprint of where that wall is. Given the seed and the ore blocks visible in a dug-out
-room, for example in a screenshot or a video, orereversal finds the room's absolute coordinates. You
-don't need to know roughly where the room is or which way the camera faced. It reports a ranked list of
-candidates and a confidence margin that tells you whether the best match is unique in the searched
-region.
-
-orereversal doesn't read images itself. The visible blocks are first written down as an
-[observation CSV](docs/observation-format.md), by hand or with an extraction tool, and `--error`
-tolerates a block or two of misreading.
+Ore placement is fully determined by the world seed, so the ore exposed in a wall fingerprints where
+that wall is. Given the seed and the blocks visible in a dug-out room, written down as an
+[observation CSV](docs/observation-format.md), orereversal finds the room's absolute coordinates on
+the GPU, with no prior guess at the location or the camera's facing, and says whether the match is
+unique.
 
 ```text
 $ cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv
-obs: 633 ore + 3791 bare | mc=1.18 | search 4096 chunks | anchor=lapis(1) tile=256 ...
-scanned 1 tiles | 62495 anchor candidates | 8 survivors (minfrac pre-filter) | top-K=3
-
-(refined top 3 with all 8 families incl. gravel/copper/iron/diamond)
 rank           world_origin        chunk  orient    present     absH     final
    1          (-6, -52, -6)     (-1, -1)    r0m1 633/633        0     633.0
    2          (-7, -50, -7)     (-1, -1)    r0m1 369/633      189     180.0
@@ -40,128 +29,38 @@ rank           world_origin        chunk  orient    present     absH     final
 top_final=633.0 margin=970.0 (vs best surviving hypothesis >33 blocks away) => CONFIDENT (unique)
 ```
 
-<sub>About 0.5 s end to end on an RTX 4070 Ti SUPER. Rank 2 is a shifted copy of the winner, so the margin
-is measured against rank 3. The true origin of this example room is (-6, -52, -6).</sub>
-
-## Contents
-
-- [Highlights](#highlights)
-- [How it works](#how-it-works)
-- [Requirements](#requirements)
-- [Quick start](#quick-start)
-- [Usage](#usage)
-- [Performance](#performance)
-- [Validation](#validation)
-- [Limitations](#limitations)
-- [Troubleshooting](#troubleshooting)
-- [Repository layout](#repository-layout)
-- [Development](#development)
-- [Acknowledgements](#acknowledgements)
-- [License](#license)
-
-## Highlights
-
-- **Works without terrain simulation.** Four ore families are generated *bit-exactly* on the GPU
-  from the seed alone. The terrain density functions aren't needed.
-- **Orientation-agnostic.** All 8 horizontal rotations and mirrors are tested, so relative
-  coordinates in any consistent frame are enough.
-- **Recall-safe.** Every candidate of the rarest observed family is tested as a hypothesis, so the true
-  location isn't pruned before scoring.
-- **Soft absence scoring.** Exposed plain stone (`bare`) penalizes candidates that predict ore where
-  there isn't any. This removes false positives that only match on presence.
-- **World-scale.** The search is tiled, so memory stays bounded for any region size. 29M chunks are
-  scanned in about 23 s.
-- **Validated on a real world.** 65 of 65 rooms carved from a real 1.18.2 world rank first, with a
-  median margin above 240.
-- **Works from footage.** `--error N` matches within ±N blocks, for positions read off a screenshot or
-  video frame rather than extracted exactly.
+<sub>About 0.5 s on an RTX 4070 Ti SUPER. Rank 2 is a shifted copy of the winner, so the margin is
+measured against rank 3.</sub>
 
 ## How it works
 
-Since 1.18, ore placement is deterministic given the world seed and the chunk. Each chunk's veins
-come from a population seed, and the veins are drawn as line segments of overlapping spheres. Terrain
-can only *remove* ore: caves, air and non-stone blocks never get replaced. So the ore you can actually
-see is a **subset** of the positions the RNG predicts. Because of that, a candidate location can be
-confirmed without simulating any terrain.
+Since 1.18, each chunk's ore veins follow from the seed alone, and terrain can only *remove* ore. The
+ore you can see is therefore a subset of what the RNG predicts, so a location can be checked without
+simulating terrain.
 
-Matching individual veins isn't enough. Matching the **full fine structure** of every exposed block
-is. A large carved room produces a fingerprint that is unique across the world.
+1. **Pass 1 (GPU).** Generate tuff, redstone, lapis and granite bit-exactly for each tile of the
+   search region. Every candidate of the rarest observed family, in all 8 rotations and mirrors, is a
+   hypothesis, scored on observed ore it explains minus ore it predicts on plain stone (`bare`).
+2. **Pass 2 (CPU).** Re-score the top hypotheses with gravel, copper, iron and buried diamond via
+   [cubiomes](https://github.com/Cubitect/cubiomes).
 
-```mermaid
-flowchart LR
-    A[observation CSV<br/>family,x,y,z] --> B
-    S[world seed] --> B
-    subgraph GPU ["PASS 1 · GPU, per tile"]
-      B[generate tuff/redstone/<br/>lapis/granite occupancy] --> C[anchor hypotheses<br/>× 8 orientations]
-      C --> D[score presence<br/>+ soft absence]
-    end
-    D --> E[global top-K]
-    subgraph CPU ["PASS 2 · CPU refine"]
-      E --> F[re-score with all 8<br/>families via cubiomes]
-    end
-    F --> G[ranked origins<br/>+ uniqueness margin]
-```
-
-### Ore families
-
-Real worldgen couples ore to terrain in three ways, and only some families survive all three.
-[`cuda/README.md`](cuda/README.md#which-ore-families-and-why) explains why.
-
-| Family | Status | Notes |
-|---|---|---|
-| tuff, redstone, lapis, granite | **GPU, bit-exact** | Discard-free; these carry the search. Tuff includes the filler that 1.18+ iron ore veins leave between y −60 and −8. |
-| gravel, copper | Refine (CPU) | Bit-exact via cubiomes, but they need the surface-height gate that the GPU port doesn't have. Gravel falls once disturbed, so treat it as a bonus. |
-| iron | Refine (CPU) | Ore features plus 1.18+ iron ore veins. A few real blocks are still missed, so treat it as a bonus. |
-| diamond | Refine (CPU) | Only *buried* diamond is exact, so an observed diamond counts when the seed placed a buried diamond there and is ignored otherwise. |
-| gold, coal | **Excluded** | `discardChanceOnAirExposure > 0` desyncs the RNG against real terrain. |
-
-Where cubiomes' approximate surface height could be wrong (gravel, copper, and lapis in low terrain),
-refine tries both outcomes of the surface gate and keeps whichever fits each candidate best.
-
-## Requirements
-
-| | Tested with |
-|---|---|
-| GPU | NVIDIA, compute capability 8.9 (RTX 40-series). Other architectures need a rebuild for that arch. |
-| CUDA Toolkit | 12.9 |
-| Host compiler | Windows: MSVC (VS 2022 Build Tools, C++ workload). Linux: gcc 13. OpenMP on both. |
-| cubiomes build | `gcc` + CMake (MinGW on Windows, because cubiomes' CMake rejects MSVC) |
-| CPU reference solver | Python 3, standard library only |
+Gold and coal are excluded: they're discarded on air exposure, which desyncs the RNG against real
+terrain. [`cuda/README.md`](cuda/README.md#which-ore-families-and-why) covers each family.
 
 ## Quick start
 
-**1. Clone this repo and cubiomes.** cubiomes isn't vendored. It's pinned to the fork that carries
-the 1.18 ore configs:
+Requires an NVIDIA GPU, CUDA 12 (tested with 12.9 on sm_89), MSVC 2022 on Windows or gcc on Linux,
+and gcc + CMake for cubiomes (MinGW on Windows).
 
 ```sh
-git clone https://github.com/Hexay/orereversal.git
-cd orereversal
-git clone https://github.com/xpple/cubiomes.git
+git clone https://github.com/Hexay/orereversal.git && cd orereversal
+git clone https://github.com/xpple/cubiomes.git      # fork with the 1.18 ore configs
 git -C cubiomes checkout 62007b8c6260290a3951f8ea9ce4a41e60dd1b54
-```
 
-**2. Build the cubiomes harness.** This step produces `harness/region_dump`, which the refine pass
-calls, and `harness/ore_dump`. On Windows, run it from Git Bash or MSYS2 with MinGW on `PATH`.
+bash harness/build.sh       # cubiomes tools used by pass 2; Git Bash/MSYS2 on Windows
+bash cuda/build.sh          # Linux; on Windows run cuda\rebuild.bat (ARCH=sm_86 etc. to override)
 
-```sh
-bash harness/build.sh
-```
-
-**3. Build the GPU matcher.**
-
-On Linux, with `nvcc` on `PATH`:
-
-```sh
-bash cuda/build.sh                # targets the local GPU; override with ARCH=sm_86 etc.
-```
-
-On Windows, run `cuda\rebuild.bat`. It calls `vcvars64.bat` from VS 2022 Build Tools, puts CUDA 12.9 on
-`PATH`, and builds for `sm_89`. Edit those three lines in the script if your setup differs.
-
-**4. Run the example** (seed `123`, a 64 × 64-chunk region around the origin):
-
-```sh
-cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv      # cuda\matcher.exe on Windows
+cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv
 ```
 
 ## Usage
@@ -170,170 +69,66 @@ cuda/matcher 123 -32 31 -32 31 examples/obs_big_room.csv      # cuda\matcher.exe
 matcher <seed> <cxMin> <cxMax> <czMin> <czMax> <obs.csv> [options]
 ```
 
-The search region is given in **chunk** coordinates, inclusive. The matcher searches the deepslate
-band (Y −64 to −1). Pass the world's Minecraft version with `--version`: 1.20 changed the seeds of
-lapis and copper, so results for a 1.20+ world are wrong without it.
+The region is in chunk coordinates, inclusive, and covers Y −64 to −1. Run `matcher` with no arguments
+for every option; the ones you'll usually need:
 
-| Option | Default | Description |
-|---|---|---|
-| `--version V` | `1.18` | Minecraft version of the world, e.g. `1.20.4` or `1.21`. 1.18 and 1.19 share configs, as do 1.20 and later. |
-| `--error E` | `0` | Positional tolerance for ore cells, in blocks. Use 1–2 for positions read from images or video. |
-| `--abs-error A` | `0` | Tolerance for `bare` cells: one only counts against a location if ore is predicted at every position within ±A. Use it when bare positions are misread too. |
-| `--absw W` | `1.0` | Weight of each absence hit (ore predicted on a `bare` cell). |
-| `--minfrac F` | `0.5` | Presence pre-filter: the fraction of GPU-family ore a hypothesis must hit to survive pass 1. |
-| `--tile T` | `256` | Tile size in chunks. Smaller tiles use less GPU memory. Values above 320 risk a Windows TDR reset, so they're clamped. |
-| `--topk K` | `4096` | Number of pass-1 survivors kept across tiles. |
-| `--refine N` | `64` | Number of top hypotheses re-scored with every family in pass 2. |
-| `--no-refine` | | Run GPU pass 1 only (4 families). |
-| `--anchor-family F` | rarest | GPU family (`tuff`, `redstone`, `lapis`, `granite`) whose candidates seed the hypotheses. By default it's the rarest observed, and a lapis-anchored result that isn't confident is retried on redstone or granite. |
-| `--legacy-gen` | | Use the original one-thread-per-chunk generator. This is the bit-exact reference and runs about 3× slower. |
-| `--no-gate` | | Debugging: generate every GPU family in pass 1, even ones the observation doesn't need. |
-
-### Observation format
-
-The observation is a CSV with one exposed block per row. Coordinates can be relative to any origin
-and use any horizontal orientation. Only Y has to be the real in-game height.
-
-```csv
-family,x,y,z
-lapis,0,-49,0
-redstone,4,-50,2
-tuff,1,-48,3
-bare,2,-49,0
-```
-
-Each row is one of the following:
-
-- A usable family: `tuff`, `redstone`, `lapis`, `granite`, `gravel`, `copper`, `iron` or `diamond`.
-- `bare`, for plain `stone` or `deepslate`.
-- **Omitted**, for anything else (air, lava, water, other ores, andesite/diorite).
-
-Labeling caves as `bare` penalizes the true location. The full rules are in
-[`docs/observation-format.md`](docs/observation-format.md).
-
-### Reading the output
-
-| Column | Meaning |
+| Option | Description |
 |---|---|
-| `world_origin` | World position of the observation's relative `(0,0,0)` |
-| `orient` | Rotation `r0`–`r3` (90° steps) and mirror `m±1` that align the observation |
-| `present` | Observed ore cells that the seed predicts at this origin |
-| `absH` | `bare` cells where the seed predicts ore (absence hits) |
-| `final` | `present − absw × absH` |
+| `--version V` | The world's version, e.g. `1.20.4`. Required for 1.20+, which changed the lapis and copper seeds. |
+| `--error E` | Tolerate ore positions off by up to E blocks. Use 1–2 for positions read from footage. |
+| `--abs-error A` | The same for `bare` cells. |
+| `--tile T` | Tile size in chunks (default 256). Lower it if the GPU runs out of memory. |
+| `--no-refine` | GPU pass only. |
 
-`margin` is the gap between the winner's `final` score and the best result whose origin is more than
-the observation's own width away. Results closer than that are shifted copies of the winner, not a
-different place. The result is **CONFIDENT** when the margin is at least `max(3, 0.3 × N_ore)`;
-otherwise the output is a shortlist. The GPU matcher only sees hypotheses that passed the `--minfrac`
-filter, so its margin is measured against the best of those.
+The observation lists one exposed block per row, as `family,x,y,z`. X and Z can be relative and in any
+orientation; Y must be the real height. Families are `tuff`, `redstone`, `lapis`, `granite`, `gravel`,
+`copper`, `iron`, `diamond`, or `bare` for plain stone/deepslate. Leave out everything else: labeling
+air or caves as `bare` penalizes the true location.
 
-### CPU reference solver
+In the output, `present` counts observed ore the seed predicts, `absH` counts `bare` cells where it
+predicts ore, and `final = present − absH`. The result is **CONFIDENT** when the winner beats every
+result farther than the room's own width away by at least `max(3, 0.3 × ore cells)`.
 
-`python/solve.py` implements the same two-stage algorithm in pure Python over a small region. It is
-useful for checking the GPU path or for experimenting:
+`python/solve.py` is a pure-Python reference implementation for small regions.
 
-```sh
-py -3 python/solve.py examples/obs_big_room.csv --seed 123 --region 13
-```
+## Performance and validation
 
-`python/make_observation.py` generates a synthetic observation (a carved room) at a known location,
-for testing.
+On an RTX 4070 Ti SUPER, a 29M-chunk search takes about 23 s (`bash tests/bench.sh 2702`), and a
+300k × 300k-block search is projected at under 5 min. See
+[`docs/gpu-optimization.md`](docs/gpu-optimization.md).
 
-## Performance
-
-Measured on an RTX 4070 Ti SUPER (consumer Ada, FP64 at 1/64 rate):
-
-| Search | Chunks | Wall time |
-|---|---|---|
-| Example room (above), incl. refine | 4,096 | ~0.5 s |
-| Large region, `--no-refine` (`bash tests/bench.sh 2702`) | 29.2 M | ~23 s |
-| 300k × 300k blocks (projected) | ~352 M | ~4.6 min |
-
-Optimization took a 300k² search from 48 min to under 5 min. The main steps were a two-kernel split,
-a mixed-precision distance test with an FP64 boundary shell, a column-analytic sphere union, and
-Morton-sorted scoring. Several dead ends were measured and abandoned along the way. The full write-up
-is in [`docs/gpu-optimization.md`](docs/gpu-optimization.md), and the reusable methodology is in
-[`docs/cuda-playbook.md`](docs/cuda-playbook.md).
-
-## Validation
-
-- **Generator.** The port produces zero position diffs against cubiomes for tuff, redstone, lapis and
-  granite on land, and for iron-vein tuff on both the host and the GPU. In low terrain, lapis follows
-  neither exactly, which refine handles (see Ore families).
-- **Real world.** 65 rooms (28 × 15 × 28 blocks) carved from a real 1.18.2 world (seed 123), 40 of them
-  in low terrain where the surface gate matters, all ranked first:
-
-  | Rooms | Found | Median margin |
-  |---|---|---|
-  | Land | 25 / 25 | 278 |
-  | Low terrain | 40 / 40 | 244 |
-
-  Three real rooms from that world ship in `examples/` (`real_polA`, `real_polB`, `real_vein_room`).
-- **Uniqueness.** The margin stays flat or grows as the search region grows 31× and beyond, because
-  absence scoring suppresses far-away false positives.
-
-The research log in [`docs/research-log.md`](docs/research-log.md) covers each experiment, the
-precision budget, and every negative result.
+The GPU generator matches cubiomes position for position. All 65 rooms carved from a real 1.18.2 world
+rank first, with median margins of 278 on land and 244 in low terrain; three of them are in
+`examples/`. Experiments and negative results are in [`docs/research-log.md`](docs/research-log.md).
 
 ## Limitations
 
-- **Known seed only.** orereversal localizes a position. It doesn't crack seeds.
-- **Java Edition only.** Bedrock generates ore differently.
-- **Deepslate band.** The search covers Y −64 to −1, where the bit-exact families dominate.
-- **You need a decent-sized observation.** A large carved room is world-unique. A few scattered
-  veins are not. As a rule of thumb, aim for hundreds of cells including about 20 or more of the
-  sparse families.
-- **Gravel moves.** It is placed suspended at generation and falls once a block update reaches it,
-  so in an explored room its contribution is only a bonus.
-- **The Linux GPU path hasn't run on a GPU yet.** On Ubuntu 24.04 everything builds without warnings,
-  and the harness, golden diff and Python solver match Windows exactly. But the matcher itself has only
-  been executed on Windows.
+- **Known seed only.** It localizes; it doesn't crack seeds.
+- **Java Edition, deepslate band (Y −64 to −1).**
+- **Needs a sizable observation:** hundreds of cells, about 20+ of them rare ore. A few veins aren't
+  unique.
+- **No image reading yet.** Observations are written by hand or extracted from a world save.
+- **The Linux build is untested on a GPU.** It compiles cleanly and the CPU paths match Windows.
 
 ## Troubleshooting
 
-| Symptom | Cause and fix |
+| Symptom | Fix |
 |---|---|
-| `region_dump not found at ...` | Build the harness (`bash harness/build.sh`). The matcher looks for it in `../harness` relative to its own path. `--no-refine` skips it. |
-| `CUDA ... out of memory` although the GPU has free memory (Windows) | Windows backs GPU allocations with system commit. Close memory-heavy programs or pass a smaller `--tile`, e.g. `--tile 128`. |
-| The true location isn't confident or isn't found | Check that caves and other non-stone blocks aren't labeled `bare`, pass `--version` for 1.20+ worlds, and use `--error 1` for positions read from video. |
-
-## Repository layout
-
-| Path | Contents |
-|---|---|
-| [`cuda/`](cuda) | **The GPU matcher.** A portable host/device port of cubiomes' 1.18 ore generation (`oregen.h` and friends) and the tiled two-pass localizer built on it. [`cuda/README.md`](cuda/README.md) maps every file. |
-| [`harness/`](harness) | C tools that dump ground-truth ore candidates from cubiomes. The refine pass calls `region_dump`; `ore_dump` is the original per-chunk validation tool. |
-| [`python/`](python) | Python CPU reference: `solve.py` (the solver), `make_observation.py` and `gen_wall.py` (synthetic observations), `observation.py` (CSV reading and writing) and `candidates.py` (the `region_dump` wrapper). |
-| [`python/research/`](python/research) | The earlier research matchers that the research log cites. A frozen snapshot, kept for reproducibility. |
-| [`tests/`](tests) | `regress.sh` (byte-for-byte regression against `tests/expected/`) and `bench.sh` (GPU timing). |
-| [`examples/`](examples) | Observation CSVs: `obs_big_room` (synthetic, the Quick start example) and rooms extracted from a real 1.18.2 world: `real_polA`, `real_polA_noiron` (the same room without its iron cells), `real_polB` and `real_vein_room`. |
-| [`docs/`](docs) | Observation format, research log, GPU optimization log, the CUDA playbook, and the README image (`img/render_hero.py`). |
-| [`research/`](research) | Accuracy research reports referenced from the research log. |
+| `region_dump not found` | Run `bash harness/build.sh`, or pass `--no-refine`. |
+| CUDA out of memory with free VRAM (Windows) | Windows backs GPU memory with system commit. Close programs or pass `--tile 128`. |
+| True location not found or not confident | Check nothing non-stone is labeled `bare`, pass `--version` for 1.20+, use `--error 1` for footage. |
 
 ## Development
 
-The matcher must stay bit-exact, so every change is checked byte for byte against recorded outputs. The
-suite needs the built binaries and Python 3, which generates two of its observations:
-
 ```sh
-bash tests/regress.sh --build      # rebuild everything, then compare all cases
-bash tests/regress.sh --python     # also run the slower Python solver case
-bash tests/bench.sh                # GPU pass timing on a 2048 x 2048-chunk region
+bash tests/regress.sh --build      # rebuild, then compare every case byte for byte (needs Python 3)
+bash tests/regress.sh --update     # re-record expected output; explain why in the commit
 ```
 
-When a change is *meant* to alter output, regenerate the expected files with `--update` and explain
-why in the commit message. Format C/CUDA with `clang-format -i` (config in `.clang-format`) and
-Python with `ruff format`. `python/research/` is excluded from formatting on purpose.
-
-## Acknowledgements
-
-- [cubiomes](https://github.com/Cubitect/cubiomes) by Cubitect, via the
-  [xpple/cubiomes](https://github.com/xpple/cubiomes) fork (commit `62007b8`) for the 1.18 ore
-  configs. The ore-generation port in `cuda/oregen.h` was hand-derived from this source.
+[`cuda/README.md`](cuda/README.md) maps the source files.
 
 ## License
 
-[MIT](LICENSE). cubiomes is distributed under its own MIT license.
-
-orereversal is not affiliated with or endorsed by Mojang Studios or Microsoft. Use it on your own worlds
-or with permission; locating other players from their footage may break a server's rules.
+[MIT](LICENSE). Built on [cubiomes](https://github.com/Cubitect/cubiomes) by Cubitect (MIT), via the
+[xpple/cubiomes](https://github.com/xpple/cubiomes) fork. Not affiliated with Mojang or Microsoft; use
+it on your own worlds or with permission.
