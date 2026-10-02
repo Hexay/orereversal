@@ -73,6 +73,11 @@ ORE_HD static inline int mayBeIronVeinCorner(const OreVeinNoise* n, int chunkX, 
            sampleDoublePerlinF32(&n->veininess, x * 1.5, y * 1.5, z * 1.5) < -VEIN_STRENGTH_CUTOFF;
 }
 
+// The 4x8x4 cell holding chunk-local block (lx, y, lz).
+ORE_HD static inline int veinCellOf(int lx, int y, int lz) {
+    return ((y + 64) >> 3) * 16 + (lx >> 2) * 4 + (lz >> 2);
+}
+
 // Screen 2: 1 if cell `cell` may hold iron-vein blocks. Its blocks interpolate between its 8 corners, so it
 // needs a strong one. strongCorner[] holds screen 1 for every corner.
 ORE_HD static inline int veinCellMayHaveIron(const unsigned char* strongCorner, int cell) {

@@ -17,8 +17,8 @@
 
 // Runs pass 1 anchored on obs.anchorFamily and merges its survivors into `top`. Returns false on failure.
 static bool searchPass1(const Options& opt, const Observation& obs, std::vector<Result>& top) {
-    bool allFamilies = opt.generateAllFamilies || !obs.bare.empty();
-    std::vector<int> configIds = selectGpuConfigs(obs, opt.generateAllFamilies);
+    bool allFamilies = opt.noFamilyGating || !obs.bare.empty();
+    std::vector<int> configIds = selectGpuConfigs(obs, opt.noFamilyGating);
     printGenerationGating(configIds, allFamilies);
 
     GpuSearch search(opt, obs, configIds);

@@ -15,6 +15,8 @@
 
 #define CUBIOMES_PI       3.14159265358979323846 // finders.c's PI, which isn't exported
 #define MAX_BRANCH_POINTS 3
+#define MAX_VARIANTS      (1 << MAX_BRANCH_POINTS)
+#define HEIGHT_CACHE      24 // quart cells per side cached around one chunk
 
 // Borderline: startY - surface in [-below, above]. Chosen on real worlds (docs/research-log.md P8, P10).
 typedef struct {
@@ -22,8 +24,6 @@ typedef struct {
 } BranchWindow;
 static const BranchWindow GRAVEL_COPPER_WINDOW = {12, 12};
 static const BranchWindow LAPIS_WINDOW = {0, 12};
-#define MAX_VARIANTS      (1 << MAX_BRANCH_POINTS)
-#define HEIGHT_CACHE      24 // quart cells per side cached around one chunk
 
 typedef struct {
     const Generator* g;

@@ -64,8 +64,8 @@ class GpuSearch {
         int regionSide = std::max(opt.chunkMaxX - opt.chunkMinX, opt.chunkMaxZ - opt.chunkMinZ) + 1;
         int maxSide = std::min(opt.tileSize, regionSide) + 2 * margin_;
         int64_t maxBlocksSide = (int64_t)maxSide * 16;
-        maxWordsPerFamily_ = (maxBlocksSide * BAND_HEIGHT * maxBlocksSide + 31) / 32;
-        occupancy_ = deviceAlloc<uint32_t>(GPU_FAMILY_COUNT * maxWordsPerFamily_);
+        int64_t maxWordsPerFamily = (maxBlocksSide * BAND_HEIGHT * maxBlocksSide + 31) / 32;
+        occupancy_ = deviceAlloc<uint32_t>(GPU_FAMILY_COUNT * maxWordsPerFamily);
         anchors_ = deviceAlloc<int3>(ANCHOR_CAPACITY);
         mortonKeys_ = deviceAlloc<uint32_t>(ANCHOR_CAPACITY);
         anchorCount_ = deviceAlloc<int>(1);
@@ -243,7 +243,6 @@ class GpuSearch {
     const Options& opt_;
     const Observation& obs_;
     int configCount_, margin_, fillBlocks_;
-    int64_t maxWordsPerFamily_;
     uint32_t *occupancy_, *mortonKeys_;
     int3* anchors_;
     int *anchorCount_, *survivorCount_, *nextVein_, *configIds_;

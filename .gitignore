@@ -13,6 +13,7 @@
 /cuda/matcher
 /cuda/oretest
 /cuda/veintest
+/research/surface-gate-probe/vein_probe
 /harness/region_dump
 /harness/ore_dump
 
@@ -47,6 +48,12 @@ vs_cpp.ps1
 # ---- python ----
 __pycache__/
 *.pyc
+
+.venv/
+
+# ---- editors ----
+.vscode/
+.idea/
 
 # ---- os ----
 .DS_Store

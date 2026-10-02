@@ -24,8 +24,8 @@ struct Options {
     int refineCount = 64;
     bool refine = true;
     bool legacyGenerator = false;
-    bool generateAllFamilies = false; // --no-gate: skip family gating (debugging)
-    int anchorFamily = -1;            // --anchor-family; -1: the rarest observed GPU family
+    bool noFamilyGating = false; // --no-gate: skip family gating (debugging)
+    int anchorFamily = -1;       // --anchor-family; -1: the rarest observed GPU family
 };
 
 static const char* USAGE =
@@ -64,7 +64,7 @@ static bool parseOptions(int argc, char** argv, Options& o) {
         else if (!strcmp(a, "--no-refine"))
             o.refine = false;
         else if (!strcmp(a, "--no-gate"))
-            o.generateAllFamilies = true;
+            o.noFamilyGating = true;
         else if (!strcmp(a, "--version") && hasValue)
             o.version = argv[++i];
         else if (!strcmp(a, "--error") && hasValue)
@@ -98,11 +98,26 @@ static bool parseOptions(int argc, char** argv, Options& o) {
         fprintf(stderr, "unsupported version '%s': 1.18 or later is required\n", o.version);
         return false;
     }
+    const struct {
+        bool failed;
+        const char* message;
+    } checks[] = {
+        {o.chunkMinX > o.chunkMaxX || o.chunkMinZ > o.chunkMaxZ, "the chunk range is empty"},
+        {o.tileSize < 1, "--tile must be positive"},
+        {o.topK < 1, "--topk must be positive"},
+        {o.refineCount < 1, "--refine must be positive"},
+        {o.tolerance < 0 || o.absenceTolerance < 0, "--error and --abs-error can't be negative"},
+        {o.minPresenceFraction < 0 || o.minPresenceFraction > 1, "--minfrac must be between 0 and 1"},
+    };
+    for (const auto& check : checks)
+        if (check.failed) {
+            fprintf(stderr, "%s\n", check.message);
+            return false;
+        }
     if (o.tileSize > MAX_TILE_SIZE) {
-        fprintf(stderr,
-                "warning: tile>%d risks a Windows TDR reset (a kernel running >2s); clamping to 256\n",
-                MAX_TILE_SIZE);
-        o.tileSize = 256;
+        fprintf(stderr, "warning: tile>%d risks a Windows TDR reset (a kernel running >2s); clamping to %d\n",
+                MAX_TILE_SIZE, MAX_TILE_SIZE);
+        o.tileSize = MAX_TILE_SIZE;
     }
     return true;
 }

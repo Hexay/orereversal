@@ -40,7 +40,7 @@ struct VariantGroup {
 
 // Candidate blocks of every family over the chunk box, deepslate band only. Gate-sensitive gravel, copper
 // and lapis come as groups of alternatives instead. Returns false if region_dump failed.
-static bool generateAllFamilies(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
+static bool buildRefineCandidates(const Options& opt, int chunkMinX, int chunkMaxX, int chunkMinZ,
                                 int chunkMaxZ, BlockSet* candidates, std::vector<VariantGroup>& groups) {
     std::vector<OrePos> positions(200000);
     for (int cx = chunkMinX; cx <= chunkMaxX; cx++)
@@ -197,7 +197,7 @@ static bool refine(const std::vector<Result>& top, const Observation& obs, const
         }
     std::vector<Result> chosen(top.begin(), top.begin() + count);
     for (const Result& r : top)
-        if (!top.empty() && chebyshev(r, top[0]) > separation) {
+        if (chebyshev(r, top[0]) > separation) {
             if (std::none_of(chosen.begin(), chosen.end(),
                              [&](const Result& c) { return chebyshev(c, r) == 0; }))
                 chosen.push_back(r);
@@ -212,10 +212,10 @@ static bool refine(const std::vector<Result>& top, const Observation& obs, const
         const Result& r = chosen[t];
         BlockSet candidates[F_COUNT];
         std::vector<VariantGroup> groups;
-        if (!generateAllFamilies(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
-                                 ((r.originX + obs.maxExtent) >> 4) + margin,
-                                 ((r.originZ - obs.maxExtent) >> 4) - margin,
-                                 ((r.originZ + obs.maxExtent) >> 4) + margin, candidates, groups)) {
+        if (!buildRefineCandidates(opt, ((r.originX - obs.maxExtent) >> 4) - margin,
+                                   ((r.originX + obs.maxExtent) >> 4) + margin,
+                                   ((r.originZ - obs.maxExtent) >> 4) - margin,
+                                   ((r.originZ + obs.maxExtent) >> 4) + margin, candidates, groups)) {
             failures++;
             continue;
         }

@@ -10,9 +10,13 @@ case "$(uname -s)" in
 esac
 
 # 1. cubiomes static lib
+if [ ! -f cubiomes/CMakeLists.txt ]; then
+  echo "cubiomes/ is missing: clone xpple/cubiomes at 62007b8 into it (see README Quick start)"
+  exit 1
+fi
 if [ ! -f cubiomes/build/libcubiomes_static.a ]; then
   cmake -G "$GEN" -S cubiomes -B cubiomes/build -DCMAKE_BUILD_TYPE=Release
-  cmake --build cubiomes/build -j 8
+  cmake --build cubiomes/build -j "$(nproc 2>/dev/null || echo 8)"
 fi
 
 # 2. harness

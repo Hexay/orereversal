@@ -23,7 +23,7 @@ static long emitIronVeinTuff(const OreVeinNoise* noise, int cx, int cz, int yMin
         for (int x = cx * 16; x < cx * 16 + 16; x++)
             for (int z = cz * 16; z < cz * 16 + 16; z++)
                 if (y >= IRON_VEIN_MIN_Y && y <= IRON_VEIN_MAX_Y &&
-                    cellLive[((y + 64) >> 3) * 16 + ((x - cx * 16) >> 2) * 4 + ((z - cz * 16) >> 2)] &&
+                    cellLive[veinCellOf(x - cx * 16, y, z - cz * 16)] &&
                     mayBeIronVeinTuff(&corners, x - cx * 16, y, z - cz * 16) &&
                     ironVeinTuffAt(noise, &corners, cx, cz, x, y, z)) {
                     printf("tuff,%d,%d,%d\n", x, y, z);

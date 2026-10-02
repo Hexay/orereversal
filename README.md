@@ -306,13 +306,14 @@ precision budget, and every negative result.
 | [`python/`](python) | Python CPU reference: `solve.py` (the solver), `make_observation.py` and `gen_wall.py` (synthetic observations), `observation.py` (CSV reading and writing) and `candidates.py` (the `region_dump` wrapper). |
 | [`python/research/`](python/research) | The earlier research matchers that the research log cites. A frozen snapshot, kept for reproducibility. |
 | [`tests/`](tests) | `regress.sh` (byte-for-byte regression against `tests/expected/`) and `bench.sh` (GPU timing). |
-| [`examples/`](examples) | Observation CSVs: synthetic rooms and walls, plus `real_pol*` and `real_vein_room` (rooms extracted from a real 1.18.2 world). |
+| [`examples/`](examples) | Observation CSVs: `obs_big_room` (synthetic, the Quick start example) and rooms extracted from a real 1.18.2 world: `real_polA`, `real_polA_noiron` (the same room without its iron cells), `real_polB` and `real_vein_room`. |
 | [`docs/`](docs) | Observation format, research log, GPU optimization log, the CUDA playbook, and the README image (`img/render_hero.py`). |
 | [`research/`](research) | Accuracy research reports referenced from the research log. |
 
 ## Development
 
-The matcher must stay bit-exact, so every change is checked byte for byte against recorded outputs:
+The matcher must stay bit-exact, so every change is checked byte for byte against recorded outputs. The
+suite needs the built binaries and Python 3, which generates two of its observations:
 
 ```sh
 bash tests/regress.sh --build      # rebuild everything, then compare all cases

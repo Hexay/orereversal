@@ -28,7 +28,7 @@ __global__ void __launch_bounds__(IRON_VEIN_BLOCK_SIZE)
 
     for (int row = threadIdx.x; row < IRON_VEIN_ROWS; row += blockDim.x) {
         int x = chunkX * 16 + (row & 15), y = IRON_VEIN_MIN_Y + (row >> 4), z = chunkZ * 16;
-        const unsigned char* live = cellLive + ((y + 64) >> 3) * 16 + ((row & 15) >> 2) * 4;
+        const unsigned char* live = cellLive + veinCellOf(row & 15, y, 0);
         uint64_t run = 0;
         for (int lz = 0; lz < 16; lz++)
             if (live[lz >> 2] && mayBeIronVeinTuff(&corners, row & 15, y, lz) &&
